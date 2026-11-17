@@ -1,7 +1,7 @@
 {
   "name": "masil",
   "productName": "마실",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "네이버 블로그 이웃집 한 바퀴 도는 데스크톱 앱",
   "main": "./out/main/index.js",
   "author": "minipaper",
