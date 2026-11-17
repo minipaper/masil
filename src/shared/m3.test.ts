@@ -138,25 +138,25 @@ describe('마실 중 다음 글', () => {
 })
 
 describe('이웃 이름', () => {
-  const base = { nickname: '지구생활 적응기~♬', nicknameCustom: false, naverNick: null as string | null }
+  const base = { nickname: '봄비 내리는 오후', nicknameCustom: false, naverNick: null as string | null }
   it('닉네임을 모르면 블로그 제목', () => {
-    expect(baseName(base)).toBe('지구생활 적응기~♬')
+    expect(baseName(base)).toBe('봄비 내리는 오후')
   })
   it('글을 열어 닉네임을 알면 닉네임', () => {
-    expect(baseName({ ...base, naverNick: '도시줌마' })).toBe('도시줌마')
+    expect(baseName({ ...base, naverNick: '봄비' })).toBe('봄비')
   })
   it('내가 고친 이름이 가장 먼저, 호칭은 그 위', () => {
-    const n = { ...base, nickname: '줌마 언니', nicknameCustom: true, naverNick: '도시줌마' }
-    expect(baseName(n)).toBe('줌마 언니')
-    expect(shownName({ ...n, honorific: '' })).toBe('줌마 언니')
-    expect(shownName({ ...n, honorific: '줌마님' })).toBe('줌마님')
+    const n = { ...base, nickname: '비 언니', nicknameCustom: true, naverNick: '봄비' }
+    expect(baseName(n)).toBe('비 언니')
+    expect(shownName({ ...n, honorific: '' })).toBe('비 언니')
+    expect(shownName({ ...n, honorific: '봄비님' })).toBe('봄비님')
   })
   it('검색은 이름, 닉네임, ID, 메모 어디서든, 여러 단어는 모두 포함', () => {
-    const n = { ...base, naverNick: '도시줌마', honorific: '', blogId: 'since131026', blogTitle: '지구생활 적응기~♬', memo: '초4 엄마' }
-    expect(matchesNeighbor(n, '줌마')).toBe(true)
-    expect(matchesNeighbor(n, 'SINCE13')).toBe(true)
-    expect(matchesNeighbor(n, '초4 지구')).toBe(true)
-    expect(matchesNeighbor(n, '콩천사')).toBe(false)
+    const n = { ...base, naverNick: '봄비', honorific: '', blogId: 'springrain', blogTitle: '봄비 내리는 오후', memo: '초4 엄마' }
+    expect(matchesNeighbor(n, '봄')).toBe(true)
+    expect(matchesNeighbor(n, 'SPRING')).toBe(true)
+    expect(matchesNeighbor(n, '초4 오후')).toBe(true)
+    expect(matchesNeighbor(n, '햇살')).toBe(false)
     expect(matchesNeighbor(n, '  ')).toBe(true)
   })
 })
