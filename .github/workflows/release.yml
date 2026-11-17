@@ -37,3 +37,5 @@ jobs:
             || gh release create "$GITHUB_REF_NAME" --title "$VERSION" --generate-notes
           # latest.yml은 electron-updater가 새 버전을 찾을 때 읽는다. 설치 파일과 함께 올린다.
           gh release upload "$GITHUB_REF_NAME" "Masil-Setup-$VERSION.exe" "Masil-Setup-$VERSION.exe.blockmap" latest.yml --clobber
+          # 초안으로 남아 있으면 electron-updater가 보지 못하므로 공개한다
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
