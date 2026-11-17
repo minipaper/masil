@@ -27,6 +27,8 @@
   const post = $derived(appState.selectedPost)
   const pending = $derived(post ? post.status === 'new' || post.status === 'read' : false)
   const round = $derived(appState.round)
+  /** 웹뷰에 열린 글의 이웃. 명단에 없는 블로그이거나 글 화면이 아니면 null */
+  const neighbor = $derived(naver?.visible ? appState.viewingNeighbor : null)
   const stats = $derived(appState.roundStats)
 
   function next(): void {
@@ -62,6 +64,11 @@
       <span class="round" title="이번 마실에서 들른 글 / 시작할 때 남은 글">
         마실 중 <b>{stats?.visited ?? 0}</b>/{round.total}
       </span>
+    {/if}
+    {#if neighbor}
+      <button type="button" class="act danger" title="{neighbor.blogId} 이웃을 명단에서 빼요" onclick={() => appState.removeCurrentNeighbor()}>
+        이웃 명단에서 제외
+      </button>
     {/if}
     {#if post && pending}
       <button type="button" class="act" onclick={() => appState.skipSelected()}>건너뛰기{#if round}<kbd>S</kbd>{/if}</button>
@@ -177,6 +184,12 @@
     border: 1px solid #d6d3c6;
     border-radius: 2px;
     color: var(--graphite-soft);
+  }
+  .act.danger {
+    color: var(--margin);
+  }
+  .act.danger:hover {
+    border-color: var(--margin);
   }
   .act.quiet {
     border-color: transparent;

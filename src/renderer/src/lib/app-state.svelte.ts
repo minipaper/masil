@@ -33,6 +33,14 @@ class AppState {
     return id == null ? null : (this.neighbors.find((n) => n.id === id) ?? null)
   })
   /** 지난 댓글을 보여줄 블로그 */
+  /**
+   * 웹뷰에 지금 열린 글의 이웃 (명단에 있을 때만). "이웃 명단에서 제외"는 이것만 쓴다.
+   * selectedNeighbor처럼 출석부 선택으로 돌아가지 않아, 다른 블로그를 보다가 엉뚱한 이웃을 지우지 않는다.
+   */
+  viewingNeighbor = $derived.by(() => {
+    const id = this.currentPost?.neighborId ?? null
+    return id == null ? null : (this.neighbors.find((n) => n.id === id) ?? null)
+  })
   historyBlogId = $derived(this.currentPost?.blogId ?? this.selectedNeighbor?.blogId ?? null)
   pendingCount = $derived(this.posts.filter((p) => p.status === 'new' || p.status === 'read').length)
   /** 지금 연 글을 뺀 나머지 들를 글 수 ("다음 글" 버튼용) */
@@ -155,6 +163,27 @@ class AppState {
     this.selectedPostId = id
     await api.posts.open(id)
     void this.loadHistory()
+  }
+
+  /**
+   * 지금 보고 있는 글의 이웃을 명단에서 뺀다. 확인 창을 먼저 띄운다.
+   * 출석부의 그 이웃 글은 함께 지워지고, 내가 남긴 댓글 기록은 남는다.
+   */
+  async removeCurrentNeighbor(): Promise<boolean> {
+    const n = this.viewingNeighbor
+    if (!n) return false
+    const name = n.honorific || n.nickname || n.blogId
+    const ok = window.confirm(
+      `${name}(${n.blogId}) 님을 이웃 명단에서 뺄까요?\n\n출석부에 있던 이 이웃의 글도 함께 사라지고, 앞으로 새 글을 확인하지 않아요. 내가 남긴 댓글 기록은 남아요.`
+    )
+    if (!ok) return false
+    await api.neighbors.remove(n.id)
+    // 지운 이웃의 글은 출석부에서 사라지므로 선택과 현재 글의 연결을 끊는다
+    if (this.currentPost?.neighborId === n.id) this.currentPost = { ...this.currentPost, neighborId: null, postId: null }
+    if (this.selectedPost?.neighborId === n.id) this.selectedPostId = null
+    await this.refresh()
+    if (this.round) await this.advance()
+    return true
   }
 
   async skipSelected(): Promise<void> {
