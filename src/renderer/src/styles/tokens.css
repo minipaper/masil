@@ -1,0 +1,65 @@
+/* 디자인 토큰: 시안 C "출석부 공책" (design/mockups/c-chulseokbu.html)
+   v1은 라이트 테마 하나만 둔다. */
+:root {
+  --cover: #2e5944; /* 공책 표지 초록 (main/index.ts COVER와 같게) */
+  --cover-deep: #244836;
+  --cover-ink: #e7efe9; /* 표지 위 글씨 */
+  --paper: #fffffb;
+  --line: #d5e2f0; /* 공책 가로줄: 글씨 뒤에는 깔지 않는다 */
+  --margin: #d65c58; /* 여백 빨간 줄, 댓글 표시 */
+  --graphite: #2b2b29;
+  --graphite-soft: #6a6a64;
+  --pen-blue: #22417a; /* 손글씨, 읽음 표시 */
+  --pencil-y: #f3c440;
+  --eraser: #e8a19e;
+  --hl: rgba(243, 196, 64, 0.38); /* 형광펜 */
+  --tab-1: #f3c440;
+  --tab-2: #e8a19e;
+  --tab-3: #9fc3e3;
+  --rule-soft: #e6e3d8;
+
+  --font-head: 'Hahmlet Variable', serif;
+  --font-body: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  --font-hand: 'Gamja Flower', cursive;
+
+  --titlebar-h: 52px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--cover);
+  color: var(--graphite);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--pencil-y);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

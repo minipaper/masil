@@ -1,0 +1,44 @@
+# 마실 (Masil)
+
+네이버 블로그 이웃의 새 글을 확인하고, 웹뷰로 글을 열어, AI 댓글 초안을 입력칸에 채워 주는 개인용 Electron 데스크톱 앱. 사용자는 PC 앞에서 이웃 블로그를 "한 바퀴" 돈다.
+
+## 절대 원칙
+
+모든 변경은 아래 원칙 안에서만 한다. 원칙과 충돌하는 요청을 받으면 구현하지 말고 사용자에게 충돌을 알린다.
+
+1. **등록은 사람이 누른다.** 공감 버튼과 댓글 "등록" 버튼은 항상 사용자가 직접 클릭한다. 앱은 댓글 입력칸에 글을 채우는 데까지만 한다. 웹뷰 스크립트에서 이 버튼들에 `click()`, `dispatchEvent`, `submit()`, 키 입력 시뮬레이션(Enter 등)을 쓰지 않는다. 등록 클릭은 capture 단계 리스너로 감지만 하고 기본 동작은 그대로 둔다.
+2. **네이버 서버를 아낀다.** RSS 확인 주기는 최소 10분(기본 30분)이고, 이웃 요청은 하나씩 순차로 보내며 사이에 3~6초 랜덤 지연을 둔다. 값은 `src/shared/policy.ts` 한곳에서만 정의한다. 하한을 낮추거나 병렬 요청을 넣지 않는다.
+3. **비밀번호는 다루지 않는다.** 로그인은 사용자가 웹뷰에서 직접 하고, `persist:naver` 세션이 이를 유지한다. 앱은 네이버 비밀번호나 로그인 폼 값을 읽거나 저장하지 않는다.
+
+## 기준 문서
+
+- 기능, UX, 기술 결정을 바꾸거나 새로 정하기 전에 `docs/DECISIONS.md`를 읽는다. 인터뷰로 확정한 내용이며, 결정이 바뀌면 같은 변경에서 이 문서도 고친다.
+- 화면 디자인의 기준은 시안 C(`design/mockups/c-chulseokbu.html`)와 토큰(`src/renderer/src/styles/tokens.css`)이다. 색과 폰트는 토큰으로만 쓴다.
+
+## 구조
+
+- `src/main`: 메인 프로세스. DB(better-sqlite3), RSS 스케줄러, AI 호출, 트레이, 업데이트, 네이버 WebContentsView 관리.
+- `src/preload/index.ts`: 앱 화면용 `window.masil` 브리지. 타입은 `src/preload/api.d.ts`.
+- `src/preload/naver.ts`: 네이버 WebContentsView에 넣는 preload. `nodeIntegrationInSubFrames`로 모든 프레임에서 실행된다.
+- `src/renderer`: Svelte 5 앱 화면.
+- `src/shared`: main, preload, renderer가 함께 쓰는 순수 로직. 테스트는 여기에 둔다.
+
+## 네이버 블로그 주의점
+
+- PC 블로그(`blog.naver.com/{id}`)의 본문과 댓글은 `mainFrame` iframe 안의 `PostView` 문서에 있다. 본문 추출과 댓글창 접근은 최상위 문서가 아니라 그 프레임에서 한다.
+- 댓글 입력칸은 contenteditable 요소다. 값을 넣은 뒤에는 `input` 이벤트를 발생시켜야 네이버 스크립트가 내용을 인식한다. 이 이벤트는 입력칸에만 보내고, 등록 버튼에는 보내지 않는다(원칙 1).
+- 네이버 DOM 선택자는 바뀔 수 있다. 선택자는 한 파일에 모으고, 찾지 못하면 조용히 넘어가지 말고 화면에 "댓글창을 찾지 못했어요"처럼 알린다.
+- 웹뷰 UA는 `toChromeUserAgent`로 Electron 토큰을 지운 일반 크롬 UA다.
+
+## 보안과 개인정보
+
+- AI API 키는 `safeStorage`로 암호화해서 저장하고, 메인 프로세스에서만 복호화해서 쓴다. renderer와 웹뷰에는 키를 넘기지 않는다.
+- 외부로 나가는 요청은 네이버, 사용자가 설정한 AI 엔드포인트, GitHub(업데이트)로만 한정한다. 텔레메트리는 넣지 않는다.
+- 로그에는 API 키와 댓글·본문 내용을 남기지 않는다.
+
+## 작업 방식
+
+- 커밋 메시지와 문서는 한국어로 쓴다.
+- 커밋하기 전에 `npm run typecheck`와 `npm test`를 통과시킨다.
+- 테스트는 vitest로 핵심 로직(RSS 파싱, 프롬프트 조립, 글 상태 전이, 정책 값)에 집중한다.
+- 배포 대상은 Windows .exe다. 개발은 macOS에서 `npm run dev`로 하고, 설치 파일은 `v*` 태그를 push하면 GitHub Actions의 Windows 러너가 만든다.
