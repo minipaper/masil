@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>마실 시안 B 골목길</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  /* 시안 B: 골목길
+     이웃 = 골목의 집. 새 글이 있으면 창문에 불이 켜지고, 다녀온 집 앞엔 발자국.
+     기억에 남는 한 가지: 연필로 그린 골목 지도. 버튼은 파란 대문 하나. */
+  :root {
+    --kraft: #D5BF99;       /* 크라프트지 */
+    --kraft-deep: #C4AB80;
+    --note: #FBF7EC;        /* 쪽지 */
+    --pencil: #37332D;      /* 연필심 */
+    --pencil-soft: #6B6255;
+    --gate: #2C5C86;        /* 파란 대문 */
+    --ivy: #5C7A45;         /* 담쟁이 */
+    --lamp: #F2C14A;        /* 켜진 창문 */
+    --tape: rgba(236, 226, 190, .78);
+    --hand: "Gaegu", cursive;
+    --sans: "Gowun Dodum", "Apple SD Gothic Neo", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    color: var(--pencil);
+    font-family: var(--sans);
+    font-size: 14px; line-height: 1.6;
+    min-width: 1200px;
+    background-color: var(--kraft);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .12  0 0 0 .22 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible { outline: 2px dashed var(--gate); outline-offset: 3px; }
+
+  .app { height: 100vh; display: grid; grid-template-rows: 46px 1fr; grid-template-columns: 318px 1fr 364px; }
+
+  .titlebar { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; padding-left: 18px; }
+  .brand { font-family: var(--hand); font-size: 28px; font-weight: 700; line-height: 1; }
+  .sub { font-size: 13px; color: var(--pencil-soft); }
+  .check { margin-left: auto; font-size: 13px; color: var(--pencil-soft); }
+  .tb { background: none; border: 0; font-size: 13px; padding: 4px 8px; color: var(--pencil-soft); }
+  .tb:hover { color: var(--pencil); text-decoration: underline wavy; text-underline-offset: 4px; }
+  .winctl { display: flex; height: 100%; }
+  .winctl span { width: 46px; display: grid; place-items: center; font-family: system-ui; font-size: 12px; color: var(--pencil-soft); }
+
+  /* 왼쪽: 골목 지도 */
+  .alley { display: flex; flex-direction: column; min-height: 0; }
+  .alley-head { padding: 10px 20px 8px; display: flex; justify-content: space-between; align-items: baseline; }
+  .alley-head h2 { margin: 0; font-family: var(--hand); font-size: 24px; font-weight: 700; }
+  .alley-head span { font-size: 13px; color: var(--pencil-soft); }
+  .seg { display: flex; margin: 0 20px 6px; border: 1.5px solid var(--pencil); border-radius: 18px 4px 16px 5px / 5px 16px 4px 18px; overflow: hidden; }
+  .seg button { flex: 1; background: none; border: 0; padding: 5px 0; font-family: var(--hand); font-size: 18px; }
+  .seg button[aria-pressed="true"] { background: var(--pencil); color: var(--kraft); }
+
+  .map { position: relative; flex: 1; overflow-y: auto; padding: 8px 14px 10px 0; }
+  .road { position: absolute; left: 0; top: 0; width: 70px; height: 760px; pointer-events: none; }
+  .houses { list-style: none; margin: 0; padding: 0; position: relative; }
+  .house { display: grid; grid-template-columns: 76px 1fr; align-items: center; min-height: 92px; cursor: pointer; }
+  .house svg.home { width: 46px; height: 46px; justify-self: center; }
+  .house .info { padding: 8px 10px; border-radius: 3px; }
+  .house:hover .info { background: rgba(251, 247, 236, .45); }
+  .house.current .info { background: var(--note); box-shadow: 2px 3px 0 rgba(55, 51, 45, .18); }
+  .house .name { font-family: var(--hand); font-size: 19px; font-weight: 700; line-height: 1.1; }
+  .house .post { display: block; font-size: 13.5px; line-height: 1.4; margin-top: 2px; }
+  .house .meta { font-size: 12px; color: var(--pencil-soft); }
+  .house.visited .post { color: var(--pencil-soft); }
+  .house.quiet .meta { color: #8A4B2A; }
+  .feet { font-size: 12px; color: var(--pencil-soft); display: inline-flex; gap: 4px; align-items: center; }
+
+  .gate-wrap { padding: 12px 20px 18px; display: flex; gap: 14px; align-items: flex-end; }
+  .gate {
+    flex: none; width: 112px; height: 74px; border: 0; padding: 0; position: relative;
+    background: var(--gate); color: var(--note);
+    border-radius: 56px 56px 3px 3px / 30px 30px 3px 3px;
+    box-shadow: inset 0 0 0 4px #24507A, inset 0 0 0 5px rgba(251, 247, 236, .35);
+    font-family: var(--hand); font-size: 21px; font-weight: 700; line-height: 1.05;
+  }
+  .gate::before { content: ""; position: absolute; left: 50%; top: 12px; bottom: 6px; width: 1.5px; background: rgba(251, 247, 236, .35); }
+  .gate::after { content: ""; position: absolute; left: calc(50% + 7px); top: 44px; width: 5px; height: 5px; border-radius: 50%; background: var(--lamp); }
+  .gate span { position: relative; display: block; padding-top: 10px; }
+  .gate small { display: block; font-family: var(--sans); font-size: 11px; font-weight: 400; margin-top: 3px; opacity: .85; }
+  .gate:hover { background: #24507A; }
+  .gate-wrap p { margin: 0; font-size: 12.5px; color: var(--pencil-soft); line-height: 1.5; }
+
+  /* 가운데 웹뷰 */
+  .view { display: flex; flex-direction: column; min-width: 0; background: #fff; margin: 0 0 10px; border-radius: 6px 6px 3px 3px; box-shadow: 0 0 0 1.5px var(--pencil), 4px 5px 0 rgba(55, 51, 45, .2); overflow: hidden; }
+  .addr { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1.5px solid var(--pencil); font-size: 12px; background: var(--note); }
+  .addr button { border: 0; background: none; width: 26px; height: 24px; color: var(--pencil-soft); }
+  .addr .url { flex: 1; font-family: system-ui, sans-serif; padding: 3px 10px; background: #fff; border: 1px solid #D8CFBC; border-radius: 12px; color: #555; }
+  .addr .login { font-family: var(--hand); font-size: 16px; color: var(--ivy); }
+  .site { flex: 1; overflow-y: auto; font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #333; }
+  .site-inner { max-width: 660px; margin: 0 auto; padding: 26px 30px 60px; }
+  .site .blogname { font-size: 13px; color: #888; border-bottom: 1px solid #eee; padding-bottom: 12px; }
+  .site h1 { font-size: 26px; line-height: 1.35; margin: 22px 0 6px; color: #222; font-weight: 600; }
+  .site .meta { font-size: 13px; color: #999; margin-bottom: 26px; }
+  .site p { font-size: 15.5px; line-height: 1.85; margin: 0 0 18px; }
+  .site figure { margin: 22px 0; }
+  .site figcaption { font-size: 13px; color: #888; text-align: center; margin-top: 8px; }
+  .site svg.photo { width: 100%; height: auto; display: block; }
+  .site .tags { color: #5a7fa8; font-size: 14px; margin: 26px 0; }
+  .site .reactions { display: flex; gap: 16px; font-size: 14px; color: #666; border-top: 1px solid #eee; padding-top: 14px; }
+  .comment-box { position: relative; margin-top: 18px; border: 1px solid #ddd; border-radius: 4px; padding: 12px 14px 46px; font-size: 14.5px; line-height: 1.7; }
+  .comment-box .nick { font-weight: 600; font-size: 13px; color: #555; margin-bottom: 4px; }
+  .comment-box .submit { position: absolute; right: 10px; bottom: 8px; border: 1px solid #ccc; background: #fafafa; padding: 4px 14px; font-size: 13px; border-radius: 3px; color: #333; }
+  .comment-box .filled { background: rgba(242, 193, 74, .22); }
+  .hint { position: absolute; right: 72px; bottom: 6px; font-family: var(--hand); font-size: 18px; font-weight: 700; color: var(--gate); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .hint svg { width: 30px; height: 16px; }
+
+  /* 오른쪽: 쪽지 */
+  .notes { display: flex; flex-direction: column; min-height: 0; }
+  .notes-scroll { overflow-y: auto; padding: 6px 20px 24px 22px; flex: 1; }
+  .nh { display: flex; justify-content: space-between; align-items: baseline; margin: 6px 0 12px; }
+  .nh h2 { margin: 0; font-family: var(--hand); font-size: 24px; font-weight: 700; }
+  .redo { background: none; border: 1.5px solid var(--pencil); padding: 1px 12px; font-family: var(--hand); font-size: 17px; border-radius: 14px 4px 12px 4px / 4px 12px 4px 14px; }
+  .redo:hover { background: var(--pencil); color: var(--kraft); }
+
+  .slip { position: relative; background: var(--note); padding: 18px 16px 12px; margin: 0 0 18px; box-shadow: 2px 3px 0 rgba(55, 51, 45, .16); }
+  .slip:nth-of-type(1) { transform: rotate(-.6deg); }
+  .slip:nth-of-type(2) { transform: rotate(.5deg); }
+  .slip:nth-of-type(3) { transform: rotate(-.3deg); }
+  .slip::before { content: ""; position: absolute; top: -8px; left: 50%; width: 74px; height: 18px; margin-left: -37px; background: var(--tape); transform: rotate(-2deg); }
+  .slip .tone { font-family: var(--hand); font-size: 18px; font-weight: 700; color: var(--pencil-soft); line-height: 1; }
+  .slip .text { margin: 8px 0 10px; font-size: 14.5px; line-height: 1.7; outline: none; }
+  .slip .text:focus { box-shadow: 0 2px 0 var(--lamp); }
+  .slip .row { display: flex; justify-content: space-between; align-items: center; }
+  .slip .used { font-family: var(--hand); font-size: 16px; color: var(--ivy); }
+  .fill { border: 0; background: var(--pencil); color: var(--note); padding: 4px 12px 4px 14px; font-size: 13px; border-radius: 3px; display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+  .fill:hover { background: var(--gate); }
+  .fill kbd { font-family: var(--sans); font-size: 11px; background: rgba(251, 247, 236, .18); padding: 0 6px; border-radius: 2px; }
+
+  .book { margin-top: 26px; }
+  .book h3 { margin: 0 0 8px; font-family: var(--hand); font-size: 21px; font-weight: 700; display: flex; justify-content: space-between; align-items: baseline; }
+  .book h3 button { background: none; border: 0; font-family: var(--hand); font-size: 16px; color: var(--pencil-soft); text-decoration: underline; }
+  .book h3 small { font-family: var(--sans); font-size: 12px; font-weight: 400; color: var(--pencil-soft); }
+  .memo { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .memo span { border: 1.5px solid var(--pencil); border-radius: 12px 3px 10px 3px / 3px 10px 3px 12px; padding: 0 9px; font-size: 13px; }
+  .memo-free { font-size: 13.5px; color: var(--pencil); margin: 0; padding-left: 10px; border-left: 3px solid var(--ivy); }
+  .said { list-style: none; margin: 0; padding: 0; }
+  .said li { padding: 9px 0; border-bottom: 1.5px dotted rgba(55, 51, 45, .35); }
+  .said .on { font-size: 12px; color: var(--pencil-soft); }
+  .said q { display: block; quotes: none; font-size: 13.5px; line-height: 1.55; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="titlebar">
+    <span class="brand">마실</span>
+    <span class="sub">우리 골목 한 바퀴</span>
+    <span class="check">2:20에 골목을 둘러봤어요. 다음은 2:50</span>
+    <button class="tb" type="button">지금 둘러보기</button>
+    <button class="tb" type="button">설정</button>
+    <div class="winctl" aria-hidden="true"><span>─</span><span>☐</span><span>✕</span></div>
+  </header>
+
+  <aside class="alley">
+    <div class="alley-head"><h2>우리 골목</h2><span>불 켜진 집 4곳</span></div>
+    <div class="seg"><button type="button" aria-pressed="true">새 글</button><button type="button" aria-pressed="false">이웃 명부</button></div>
+    <div class="map">
+      <svg class="road" viewBox="0 0 70 760" aria-hidden="true"><path d="M38 0 C18 60 58 110 38 170 S 20 280 40 350 S 56 470 36 540 S 22 660 38 760" fill="none" stroke="#37332D" stroke-width="1.4" stroke-dasharray="5 6" opacity=".55"/><path d="M38 0 C18 60 58 110 38 170 S 20 280 40 350 S 56 470 36 540 S 22 660 38 760" fill="none" stroke="#FBF7EC" stroke-width="22" opacity=".28"/></svg>
+      <ul class="houses">
+        <li class="house current">
+          <svg class="home" viewBox="0 0 48 48" aria-hidden="true"><path d="M6 22 L24 7 L42 22" fill="none" stroke="#37332D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M10 20 V41 H38 V20" fill="#FBF7EC" stroke="#37332D" stroke-width="2" stroke-linejoin="round"/><rect x="15" y="25" width="8" height="7" fill="#F2C14A" stroke="#37332D" stroke-width="1.5"/><path d="M28 41 V29 H34 V41" fill="#2C5C86" stroke="#37332D" stroke-width="1.5"/></svg>
+          <div class="info"><span class="name">봄비네</span><span class="post">제주 동쪽 오름 세 군데, 하루에 다 돌기</span><span class="meta">오늘 오전 9:12, 지금 보는 중</span></div>
+        </li>
+        <li class="house">
+          <svg class="home" viewBox="0 0 48 48" aria-hidden="true"><path d="M6 22 L24 7 L42 22" fill="none" stroke="#37332D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M10 20 V41 H38 V20" fill="#FBF7EC" stroke="#37332D" stroke-width="2" stroke-linejoin="round"/><rect x="15" y="25" width="8" height="7" fill="#F2C14A" stroke="#37332D" stroke-width="1.5"/><path d="M28 41 V29 H34 V41" fill="#5C7A45" stroke="#37332D" stroke-width="1.5"/></svg>
+          <div class="info"><span class="name">하늘다람쥐네</span><span class="post">베란다 바질 첫 수확, 페스토 만들었어요</span><span class="meta">오늘 오전 8:40</span></div>
+        </li>
+        <li class="house">
+          <svg class="home" viewBox="0 0 48 48" aria-hidden="true"><path d="M6 22 L24 7 L42 22" fill="none" stroke="#37332D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M10 20 V41 H38 V20" fill="#FBF7EC" stroke="#37332D" stroke-width="2" stroke-linejoin="round"/><rect x="15" y="25" width="8" height="7" fill="#F2C14A" stroke="#37332D" stroke-width="1.5"/><path d="M28 41 V29 H34 V41" fill="#8A4B2A" stroke="#37332D" stroke-width="1.5"/></svg>
+          <div class="info"><span class="name">동네빵집순례자네</span><span class="post">망원동 소금빵 세 곳 비교</span><span class="meta">어제 밤 11:05</span></div>
+        </li>
+        <li class="house quiet">
+          <svg class="home" viewBox="0 0 48 48" aria-hidden="true"><path d="M6 22 L24 7 L42 22" fill="none" stroke="#37332D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M10 20 V41 H38 V20" fill="#FBF7EC" stroke="#37332D" stroke-width="2" stroke-linejoin="round"/><rect x="15" y="25" width="8" height="7" fill="#F2C14A" stroke="#37332D" stroke-width="1.5"/><path d="M28 41 V29 H34 V41" fill="#2C5C86" stroke="#37332D" stroke-width="1.5"/></svg>
+          <div class="info"><span class="name">모과나무집</span><span class="post">김장 전 장보기 목록 정리</span><span class="meta">어제 저녁 7:30, 마지막 마실 34일 전</span></div>
+        </li>
+        <li class="house visited">
+          <svg class="home" viewBox="0 0 48 48" aria-hidden="true"><path d="M6 22 L24 7 L42 22" fill="none" stroke="#37332D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M10 20 V41 H38 V20" fill="#FBF7EC" stroke="#37332D" stroke-width="2" stroke-linejoin="round"/><rect x="15" y="25" width="8" height="7" fill="none" stroke="#37332D" stroke-width="1.5"/><path d="M28 41 V29 H34 V41" fill="none" stroke="#37332D" stroke-width="1.5"/></svg>
+          <div class="info"><span class="name">연필깎이네</span><span class="post">만년필 잉크 '청묵' 한 달 사용기</span>
+            <span class="feet"><svg width="20" height="12" viewBox="0 0 20 12" aria-hidden="true"><ellipse cx="5" cy="7" rx="3" ry="4.5" fill="#6B6255"/><ellipse cx="14" cy="5" rx="3" ry="4.5" fill="#6B6255"/></svg>댓글 남기고 공감했어요</span></div>
+        </li>
+        <li class="house visited">
+          <svg class="home" viewBox="0 0 48 48" aria-hidden="true"><path d="M6 22 L24 7 L42 22" fill="none" stroke="#37332D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M10 20 V41 H38 V20" fill="#FBF7EC" stroke="#37332D" stroke-width="2" stroke-linejoin="round"/><rect x="15" y="25" width="8" height="7" fill="none" stroke="#37332D" stroke-width="1.5"/><path d="M28 41 V29 H34 V41" fill="none" stroke="#37332D" stroke-width="1.5"/></svg>
+          <div class="info"><span class="name">고양이세탁소</span><span class="post">보리가 처음으로 무릎에 올라왔다</span>
+            <span class="feet"><svg width="20" height="12" viewBox="0 0 20 12" aria-hidden="true"><ellipse cx="5" cy="7" rx="3" ry="4.5" fill="#6B6255"/><ellipse cx="14" cy="5" rx="3" ry="4.5" fill="#6B6255"/></svg>댓글 남겼어요</span></div>
+        </li>
+        <li class="house visited">
+          <svg class="home" viewBox="0 0 48 48" aria-hidden="true"><path d="M6 22 L24 7 L42 22" fill="none" stroke="#37332D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M10 20 V41 H38 V20" fill="#FBF7EC" stroke="#37332D" stroke-width="2" stroke-linejoin="round"/><rect x="15" y="25" width="8" height="7" fill="none" stroke="#37332D" stroke-width="1.5"/><path d="M28 41 V29 H34 V41" fill="none" stroke="#37332D" stroke-width="1.5"/></svg>
+          <div class="info"><span class="name">느린우체국</span><span class="post">손편지 모임 11월 후기</span><span class="meta">지나쳤어요</span></div>
+        </li>
+      </ul>
+    </div>
+    <div class="gate-wrap">
+      <button class="gate" type="button"><span>마실 나가기<small>불 켜진 집 4곳</small></span></button>
+      <p>먼저 불 켜진 집부터 차례로 들러요. 댓글을 남기거나 지나치면 다음 집으로.</p>
+    </div>
+  </aside>
+
+  <main class="view">
+    <div class="addr">
+      <button type="button" aria-label="뒤로">‹</button>
+      <button type="button" aria-label="앞으로">›</button>
+      <button type="button" aria-label="새로고침">↻</button>
+      <div class="url">blog.naver.com/springrain_jeju/223614208871</div>
+      <span class="login">로그인됨</span>
+    </div>
+    <div class="site">
+      <div class="site-inner">
+        <div class="blogname">봄비의 제주 일기</div>
+        <h1>제주 동쪽 오름 세 군데, 하루에 다 돌기</h1>
+        <div class="meta">봄비 · 2026. 11. 17. 9:12</div>
+        <p>아침 7시에 숙소를 나와서 다랑쉬오름부터 올랐어요. 정상까지 30분 정도인데 경사가 꽤 있어서 중간에 두 번 쉬었습니다.</p>
+        <figure>
+          <svg class="photo" viewBox="0 0 600 300" aria-hidden="true"><rect width="600" height="300" fill="#C9D8DF"/><path d="M0 210 C120 150 210 140 300 175 C390 205 470 160 600 150 L600 300 L0 300Z" fill="#8FA27A"/><path d="M180 230 C220 190 300 185 340 228 Z" fill="#6E8360"/><path d="M0 255 C150 235 420 240 600 250 L600 300 L0 300Z" fill="#A9A57A"/></svg>
+          <figcaption>다랑쉬오름 정상에서 본 아끈다랑쉬. 진짜 밥그릇 엎어놓은 모양이에요.</figcaption>
+        </figure>
+        <p>두 번째는 용눈이오름. 휴식년이 끝나고 다시 열렸다고 해서 기대했는데, 바람이 너무 불어서 모자를 두 번이나 날릴 뻔했어요.</p>
+        <p>마지막은 손지오름. 사람이 거의 없어서 해 질 무렵 억새 사이에 한참 앉아 있다 내려왔습니다.</p>
+        <figure>
+          <svg class="photo" viewBox="0 0 600 260" aria-hidden="true"><rect width="600" height="260" fill="#E6CFA8"/><circle cx="430" cy="120" r="34" fill="#F2DDB5"/><path d="M0 170 C160 140 330 150 600 165 L600 260 L0 260Z" fill="#B59B6E"/><g stroke="#8D7650" stroke-width="2"><path d="M60 260 L70 190"/><path d="M90 260 L84 200"/><path d="M120 260 L132 185"/><path d="M500 260 L494 195"/><path d="M530 260 L540 188"/></g></svg>
+          <figcaption>손지오름 억새</figcaption>
+        </figure>
+        <div class="tags">#제주오름 #다랑쉬오름 #용눈이오름 #손지오름</div>
+        <div class="reactions"><span>♡ 공감 24</span><span>댓글 9</span></div>
+        <div class="comment-box">
+          <div class="nick">마실가는사람</div>
+          <span class="filled">아끈다랑쉬가 정말 밥그릇 엎어놓은 모양이네요 ㅎㅎ 아침 7시부터 오름 세 군데라니, 봄비님 체력에 또 한 번 놀라요. 손지오름 억새 사이에 앉아 계셨을 장면이 그려져요.</span>
+          <span class="hint"><svg viewBox="0 0 30 16" aria-hidden="true"><path d="M2 8 C10 3 20 3 28 8 M22 3 L28 8 L22 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>등록은 직접 꾹</span>
+          <button class="submit" type="button">등록</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="notes">
+    <div class="notes-scroll">
+      <div class="nh"><h2>건넬 말 쪽지</h2><button class="redo" type="button">다시 써 줘</button></div>
+
+      <div class="slip">
+        <div class="tone">다정하게</div>
+        <div class="text" contenteditable="true">아끈다랑쉬가 정말 밥그릇 엎어놓은 모양이네요 ㅎㅎ 아침 7시부터 오름 세 군데라니, 봄비님 체력에 또 한 번 놀라요. 손지오름 억새 사이에 앉아 계셨을 장면이 그려져요.</div>
+        <div class="row"><span class="used">댓글창에 넣었어요</span><button class="fill" type="button">채우기 <kbd>1</kbd></button></div>
+      </div>
+      <div class="slip">
+        <div class="tone">짧고 가볍게</div>
+        <div class="text" contenteditable="true">모자를 두 번이나 날릴 뻔한 용눈이오름, 사진으로도 바람이 느껴져요!</div>
+        <div class="row"><button class="fill" type="button">채우기 <kbd>2</kbd></button></div>
+      </div>
+      <div class="slip">
+        <div class="tone">물어보며 잇기</div>
+        <div class="text" contenteditable="true">손지오름은 처음 들어봐요. 해 질 무렵에 가야 억새가 제일 예쁜가요? 다음 제주 여행 때 꼭 넣어보고 싶어요.</div>
+        <div class="row"><button class="fill" type="button">채우기 <kbd>3</kbd></button></div>
+      </div>
+
+      <section class="book">
+        <h3>봄비네 수첩 <button type="button">고치기</button></h3>
+        <div class="memo"><span>봄비님</span><span>존댓말</span><span>아주 가까움</span></div>
+        <p class="memo-free">제주 이주 3년 차. 작년 여름 귤밭 일손 얘기 나눴음.</p>
+      </section>
+
+      <section class="book">
+        <h3>지난번에 건넨 말 <small>14번</small></h3>
+        <ul class="said">
+          <li><span class="on">10월 28일, 「귤 따기 체험 후기」</span><q>귤 껍질 까서 하얀 실까지 다 떼어 드시는 거 저랑 똑같아요. 노지 귤이 이렇게 새콤한 줄 몰랐네요.</q></li>
+          <li><span class="on">10월 3일, 「추석 연휴 성산 일출」</span><q>새벽 5시에 줄 서신 보람이 있네요. 구름 사이로 해가 반만 나온 사진이 제일 좋아요.</q></li>
+          <li><span class="on">9월 15일, 「장마 끝, 빨래 널기 좋은 날」</span><q>제주 바람에 마른 이불 냄새, 상상만 해도 좋네요.</q></li>
+        </ul>
+      </section>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

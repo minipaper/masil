@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>마실 시안 C 출석부</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@400;600;800&family=IBM+Plex+Sans+KR:wght@400;500;600&family=Gamja+Flower&display=swap" rel="stylesheet">
+<style>
+  /* 시안 C: 출석부 공책
+     초록 공책 표지 안에 이웃 출석부. 다녀온 집은 연필로 ○, 지나친 집은 △.
+     기억에 남는 한 가지: 출석부 표와 연필 표시. 오른쪽엔 색인 탭. */
+  :root {
+    --cover: #2E5944;       /* 공책 표지 초록 */
+    --cover-deep: #244836;
+    --paper: #FFFFFB;
+    --line: #BCD0E6;        /* 공책 가로줄 */
+    --margin: #D65C58;      /* 여백 빨간 줄 */
+    --graphite: #2B2B29;
+    --graphite-soft: #6A6A64;
+    --pencil-y: #F3C440;    /* 연필 몸통 */
+    --eraser: #E8A19E;
+    --hl: rgba(243, 196, 64, .38); /* 형광펜 */
+    --tab-1: #F3C440; --tab-2: #E8A19E; --tab-3: #9FC3E3;
+    --head: "Hahmlet", serif;
+    --body: "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif;
+    --hand: "Gamja Flower", cursive;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--cover); color: var(--graphite); font-family: var(--body); font-size: 13.5px; line-height: 1.6; min-width: 1200px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--pencil-y); outline-offset: 2px; }
+
+  .app { height: 100vh; display: grid; grid-template-rows: 52px 1fr; grid-template-columns: 352px 1fr 380px; padding: 0 10px 10px; column-gap: 8px; }
+
+  .titlebar { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; color: #E7EFE9; margin-right: -10px; }
+  .label {
+    background: var(--paper); color: var(--graphite);
+    display: flex; align-items: center; gap: 12px;
+    padding: 4px 14px 4px 12px; border-radius: 4px;
+    box-shadow: inset 0 0 0 1px #D6D3C6, inset 0 0 0 4px var(--paper), inset 0 0 0 5px var(--margin);
+  }
+  .label b { font-family: var(--head); font-weight: 800; font-size: 19px; }
+  .label .owner { font-size: 12px; color: var(--graphite-soft); border-bottom: 1px solid #BDBAAE; padding: 0 2px; }
+  .label .owner em { font-family: var(--hand); font-style: normal; font-size: 17px; color: #22417A; }
+  .check { margin-left: auto; font-size: 12.5px; opacity: .85; }
+  .tb { background: none; border: 0; color: #E7EFE9; font-size: 12.5px; padding: 4px 8px; }
+  .tb:hover { text-decoration: underline; }
+  .winctl { display: flex; height: 100%; }
+  .winctl span { width: 46px; display: grid; place-items: center; font-family: system-ui; font-size: 12px; opacity: .8; }
+
+  .page { background: var(--paper); border-radius: 3px; min-height: 0; display: flex; flex-direction: column; box-shadow: 0 1px 0 var(--cover-deep); }
+
+  /* 왼쪽: 출석부 */
+  .roll-head { padding: 16px 18px 10px; border-bottom: 2px solid var(--graphite); }
+  .roll-head h2 { margin: 0; font-family: var(--head); font-weight: 800; font-size: 22px; line-height: 1.2; }
+  .roll-head p { margin: 4px 0 0; color: var(--graphite-soft); font-size: 12.5px; }
+  .switch { display: flex; gap: 14px; padding: 8px 18px 0; font-size: 13px; }
+  .switch button { background: none; border: 0; padding: 0 0 6px; color: var(--graphite-soft); border-bottom: 2px solid transparent; }
+  .switch button[aria-pressed="true"] { color: var(--graphite); font-weight: 600; border-bottom-color: var(--margin); }
+
+  .roll { flex: 1; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { position: sticky; top: 0; background: var(--paper); font-weight: 500; font-size: 11.5px; color: var(--graphite-soft); text-align: center; padding: 8px 0 5px; border-bottom: 1px solid var(--graphite); }
+  thead th:first-child { text-align: left; padding-left: 18px; }
+  tbody td { border-bottom: 1px solid var(--line); padding: 9px 0; vertical-align: middle; }
+  tbody td.who { padding-left: 18px; padding-right: 8px; }
+  tbody td.mark { width: 34px; text-align: center; border-left: 1px solid var(--line); }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover td { background: #F8F7EF; }
+  tbody tr.current td { background: linear-gradient(transparent 12%, var(--hl) 12%, var(--hl) 88%, transparent 88%); }
+  .nm { font-weight: 600; font-size: 13.5px; display: block; line-height: 1.3; }
+  .pt { display: block; font-size: 12.5px; line-height: 1.4; color: var(--graphite); margin-top: 1px; }
+  .tm { font-size: 11.5px; color: var(--graphite-soft); }
+  tr.done .pt { color: var(--graphite-soft); }
+  .late { font-family: var(--hand); font-size: 15px; color: var(--margin); margin-left: 4px; }
+  .mark svg { width: 20px; height: 20px; vertical-align: middle; }
+
+  .legend { display: flex; gap: 14px; padding: 8px 18px; font-size: 12px; color: var(--graphite-soft); border-top: 1px solid var(--line); }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .legend svg { width: 15px; height: 15px; }
+
+  .start { padding: 12px 18px 16px; display: flex; align-items: center; gap: 14px; }
+  /* 연필 버튼 */
+  .pencil {
+    flex: none; border: 0; padding: 0; background: none; display: flex; align-items: stretch; height: 40px;
+    filter: drop-shadow(0 2px 0 rgba(0,0,0,.18));
+  }
+  .pencil .tip { width: 30px; background: #E8C99B; clip-path: polygon(0 50%, 100% 0, 100% 100%); position: relative; }
+  .pencil .tip::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 10px; background: var(--graphite); clip-path: polygon(0 50%, 100% 33%, 100% 67%); }
+  .pencil .body {
+    background: var(--pencil-y); color: var(--graphite); font-weight: 600; font-size: 14px;
+    padding: 0 16px; display: flex; align-items: center; gap: 8px;
+    background-image: linear-gradient(transparent 32%, rgba(0,0,0,.06) 32%, rgba(0,0,0,.06) 34%, transparent 34%, transparent 66%, rgba(0,0,0,.06) 66%, rgba(0,0,0,.06) 68%, transparent 68%);
+  }
+  .pencil .body small { font-weight: 400; font-size: 12px; color: #5B4A12; }
+  .pencil .ferrule { width: 10px; background: repeating-linear-gradient(90deg, #B9B7AE 0 2px, #D9D7CE 2px 4px); }
+  .pencil .eraser { width: 18px; background: var(--eraser); border-radius: 0 6px 6px 0; }
+  .pencil:hover .body { background-color: #F7CF55; }
+  .start p { margin: 0; font-size: 12px; color: var(--graphite-soft); line-height: 1.5; }
+
+  /* 가운데: 웹뷰 */
+  .view { background: #fff; overflow: hidden; }
+  .addr { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: #F4F3EC; border-bottom: 1px solid #DCDACF; font-size: 12px; }
+  .addr button { border: 0; background: none; width: 26px; height: 24px; color: var(--graphite-soft); border-radius: 3px; }
+  .addr button:hover { background: #E6E4DA; }
+  .addr .url { flex: 1; padding: 3px 10px; background: #fff; border: 1px solid #DCDACF; border-radius: 3px; color: #555; font-family: system-ui, sans-serif; }
+  .addr .login { color: var(--cover); font-weight: 500; }
+  .site { flex: 1; overflow-y: auto; font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #333; }
+  .site-inner { max-width: 660px; margin: 0 auto; padding: 26px 30px 60px; }
+  .site .blogname { font-size: 13px; color: #888; border-bottom: 1px solid #eee; padding-bottom: 12px; }
+  .site h1 { font-size: 26px; line-height: 1.35; margin: 22px 0 6px; color: #222; font-weight: 600; }
+  .site .meta { font-size: 13px; color: #999; margin-bottom: 26px; }
+  .site p { font-size: 15.5px; line-height: 1.85; margin: 0 0 18px; }
+  .site figure { margin: 22px 0; }
+  .site figcaption { font-size: 13px; color: #888; text-align: center; margin-top: 8px; }
+  .site svg.photo { width: 100%; height: auto; display: block; }
+  .site .tags { color: #5a7fa8; font-size: 14px; margin: 26px 0; }
+  .site .reactions { display: flex; gap: 16px; font-size: 14px; color: #666; border-top: 1px solid #eee; padding-top: 14px; }
+  .comment-box { position: relative; margin-top: 18px; border: 1px solid #ddd; border-radius: 4px; padding: 12px 14px 46px; font-size: 14.5px; line-height: 1.7; }
+  .comment-box .nick { font-weight: 600; font-size: 13px; color: #555; margin-bottom: 4px; }
+  .comment-box .submit { position: absolute; right: 10px; bottom: 8px; border: 1px solid #ccc; background: #fafafa; padding: 4px 14px; font-size: 13px; border-radius: 3px; color: #333; }
+  .comment-box .filled { background: linear-gradient(transparent 55%, var(--hl) 55%); }
+  .hint { position: absolute; right: 72px; bottom: 5px; font-family: var(--hand); font-size: 19px; color: var(--margin); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .hint svg { width: 30px; height: 16px; }
+
+  /* 오른쪽: 공책 + 색인 탭 */
+  .right { position: relative; margin-right: 20px; }
+  .index { position: absolute; right: -28px; top: 14px; display: flex; flex-direction: column; gap: 6px; z-index: 1; }
+  .index button {
+    writing-mode: vertical-rl; border: 0; width: 28px; padding: 12px 0; font-size: 12.5px; font-weight: 500;
+    border-radius: 0 5px 5px 0; color: var(--graphite);
+  }
+  .index button:nth-child(1) { background: var(--tab-1); }
+  .index button:nth-child(2) { background: var(--tab-2); }
+  .index button:nth-child(3) { background: var(--tab-3); }
+  .index button[aria-current="true"] { width: 32px; margin-left: -4px; font-weight: 600; }
+
+  .sheet {
+    flex: 1; overflow-y: auto; padding: 14px 18px 24px 52px; position: relative;
+    background-image:
+      linear-gradient(90deg, transparent 40px, var(--margin) 40px, var(--margin) 41px, transparent 41px),
+      repeating-linear-gradient(var(--paper) 0 27px, var(--line) 27px 28px);
+    background-attachment: local;
+  }
+  .sh { display: flex; justify-content: space-between; align-items: center; height: 28px; margin-bottom: 0; }
+  .sh h2 { margin: 0; font-family: var(--head); font-weight: 800; font-size: 17px; }
+  .sh button { background: var(--paper); border: 1px solid #BDBAAE; font-size: 12px; padding: 1px 10px; border-radius: 3px; color: var(--graphite-soft); }
+  .sh button:hover { border-color: var(--graphite); color: var(--graphite); }
+  .sh small { font-family: var(--body); font-weight: 400; font-size: 12px; color: var(--graphite-soft); margin-left: 6px; }
+
+  .draft { position: relative; padding-top: 28px; }
+  .draft .num { position: absolute; left: -40px; top: 22px; width: 36px; text-align: center; font-family: var(--hand); font-size: 30px; line-height: 1; color: #22417A; }
+  .draft.used .num::after { content: ""; position: absolute; left: 6px; top: -4px; width: 24px; height: 36px; border: 1.5px solid #22417A; border-radius: 50%; transform: rotate(-12deg); }
+  .draft .tone { font-size: 12px; color: var(--graphite-soft); line-height: 28px; height: 28px; display: flex; justify-content: space-between; }
+  .draft .tone .used-note { font-family: var(--hand); font-size: 16px; color: #22417A; }
+  .draft .text { font-family: var(--head); font-size: 14.5px; line-height: 28px; outline: none; }
+  .draft .text:focus { background: rgba(243, 196, 64, .12); }
+  .draft .row { height: 28px; display: flex; justify-content: flex-end; align-items: center; }
+  .fill { border: 0; background: var(--cover); color: #fff; font-size: 12.5px; padding: 2px 10px 2px 12px; border-radius: 3px; display: inline-flex; gap: 8px; align-items: center; height: 24px; }
+  .fill:hover { background: var(--cover-deep); }
+  .fill kbd { font-family: var(--body); font-size: 11px; background: rgba(255,255,255,.18); padding: 0 6px; border-radius: 2px; line-height: 16px; }
+
+  .block { padding-top: 28px; }
+  .fields { display: grid; grid-template-columns: 52px 1fr; font-size: 13px; line-height: 28px; }
+  .fields dt { color: var(--graphite-soft); }
+  .fields dd { margin: 0; }
+  .fields .free { grid-column: 1 / -1; font-family: var(--hand); font-size: 18px; color: #22417A; }
+  .near { color: var(--margin); letter-spacing: 1px; }
+  .past { list-style: none; margin: 0; padding: 0; }
+  .past li { line-height: 28px; }
+  .past .on { font-size: 12px; color: var(--graphite-soft); display: block; height: 28px; }
+  .past q { display: block; quotes: none; font-size: 13px; line-height: 28px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="titlebar">
+    <div class="label"><b>마실 공책</b><span class="owner">이름 <em>마실가는사람</em></span></div>
+    <span class="check">2:20에 확인했어요. 다음 확인은 2:50</span>
+    <button class="tb" type="button">지금 확인</button>
+    <button class="tb" type="button">설정</button>
+    <div class="winctl" aria-hidden="true"><span>─</span><span>☐</span><span>✕</span></div>
+  </header>
+
+  <aside class="page">
+    <div class="roll-head">
+      <h2>11월 17일 화요일 출석부</h2>
+      <p>새 글 5편, 그중 2곳 다녀옴</p>
+    </div>
+    <div class="switch"><button type="button" aria-pressed="true">오늘 새 글</button><button type="button" aria-pressed="false">이웃 명단 32</button><button type="button" aria-pressed="false">오래 못 간 집</button></div>
+    <div class="roll">
+      <table>
+        <thead><tr><th>이웃과 새 글</th><th>읽음</th><th>공감</th><th>댓글</th></tr></thead>
+        <tbody>
+          <tr class="current">
+            <td class="who"><span class="nm">봄비</span><span class="pt">제주 동쪽 오름 세 군데, 하루에 다 돌기</span><span class="tm">오늘 9:12</span></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="읽음"><path d="M10 2.6 C15 2.4 17.6 6 17.3 10.4 C17 14.8 13.4 17.6 9.4 17.3 C5.2 17 2.5 13.6 2.8 9.6 C3 6 5.6 3.2 10.8 3.1" fill="none" stroke="#22417A" stroke-width="1.6" stroke-linecap="round"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+          </tr>
+          <tr>
+            <td class="who"><span class="nm">하늘다람쥐</span><span class="pt">베란다 바질 첫 수확, 페스토 만들었어요</span><span class="tm">오늘 8:40</span></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+          </tr>
+          <tr>
+            <td class="who"><span class="nm">동네빵집순례자</span><span class="pt">망원동 소금빵 세 곳 비교</span><span class="tm">어제 23:05</span></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+          </tr>
+          <tr>
+            <td class="who"><span class="nm">모과나무집<span class="late">34일 만</span></span><span class="pt">김장 전 장보기 목록 정리</span><span class="tm">어제 19:30</span></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+          </tr>
+          <tr class="done">
+            <td class="who"><span class="nm">연필깎이</span><span class="pt">만년필 잉크 '청묵' 한 달 사용기</span><span class="tm">어제 14:10</span></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="읽음"><path d="M10 2.6 C15 2.4 17.6 6 17.3 10.4 C17 14.8 13.4 17.6 9.4 17.3 C5.2 17 2.5 13.6 2.8 9.6 C3 6 5.6 3.2 10.8 3.1" fill="none" stroke="#22417A" stroke-width="1.6" stroke-linecap="round"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="공감함"><path d="M10 2.6 C15 2.4 17.6 6 17.3 10.4 C17 14.8 13.4 17.6 9.4 17.3 C5.2 17 2.5 13.6 2.8 9.6 C3 6 5.6 3.2 10.8 3.1" fill="none" stroke="#22417A" stroke-width="1.6" stroke-linecap="round"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="댓글 남김"><path d="M10 2.6 C15 2.4 17.6 6 17.3 10.4 C17 14.8 13.4 17.6 9.4 17.3 C5.2 17 2.5 13.6 2.8 9.6 C3 6 5.6 3.2 10.8 3.1" fill="none" stroke="#D65C58" stroke-width="1.8" stroke-linecap="round"/></svg></td>
+          </tr>
+          <tr class="done">
+            <td class="who"><span class="nm">고양이세탁소</span><span class="pt">보리가 처음으로 무릎에 올라왔다</span><span class="tm">11월 15일</span></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="읽음"><path d="M10 2.6 C15 2.4 17.6 6 17.3 10.4 C17 14.8 13.4 17.6 9.4 17.3 C5.2 17 2.5 13.6 2.8 9.6 C3 6 5.6 3.2 10.8 3.1" fill="none" stroke="#22417A" stroke-width="1.6" stroke-linecap="round"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="댓글 남김"><path d="M10 2.6 C15 2.4 17.6 6 17.3 10.4 C17 14.8 13.4 17.6 9.4 17.3 C5.2 17 2.5 13.6 2.8 9.6 C3 6 5.6 3.2 10.8 3.1" fill="none" stroke="#D65C58" stroke-width="1.8" stroke-linecap="round"/></svg></td>
+          </tr>
+          <tr class="done">
+            <td class="who"><span class="nm">느린우체국</span><span class="pt">손편지 모임 11월 후기</span><span class="tm">11월 14일</span></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="건너뜀"><path d="M10 3.5 L17 16 L3.2 16.3 Z" fill="none" stroke="#6A6A64" stroke-width="1.5" stroke-linejoin="round"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+            <td class="mark"><svg viewBox="0 0 20 20" aria-label="아직"><circle cx="10" cy="10" r="1.4" fill="#A9A79E"/></svg></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="legend">
+      <span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.6 C15 2.4 17.6 6 17.3 10.4 C17 14.8 13.4 17.6 9.4 17.3 C5.2 17 2.5 13.6 2.8 9.6 C3 6 5.6 3.2 10.8 3.1" fill="none" stroke="#D65C58" stroke-width="1.8"/></svg>댓글</span>
+      <span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.6 C15 2.4 17.6 6 17.3 10.4 C17 14.8 13.4 17.6 9.4 17.3 C5.2 17 2.5 13.6 2.8 9.6 C3 6 5.6 3.2 10.8 3.1" fill="none" stroke="#22417A" stroke-width="1.6"/></svg>읽음, 공감</span>
+      <span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5 L17 16 L3.2 16.3 Z" fill="none" stroke="#6A6A64" stroke-width="1.5"/></svg>건너뜀</span>
+    </div>
+    <div class="start">
+      <button class="pencil" type="button"><span class="tip"></span><span class="body">마실 시작 <small>남은 4편</small></span><span class="ferrule"></span><span class="eraser"></span></button>
+      <p>위에서부터 차례로 엽니다.<br>→ 다음, S 건너뛰기</p>
+    </div>
+  </aside>
+
+  <main class="page view">
+    <div class="addr">
+      <button type="button" aria-label="뒤로">‹</button>
+      <button type="button" aria-label="앞으로">›</button>
+      <button type="button" aria-label="새로고침">↻</button>
+      <div class="url">blog.naver.com/springrain_jeju/223614208871</div>
+      <span class="login">로그인됨</span>
+    </div>
+    <div class="site">
+      <div class="site-inner">
+        <div class="blogname">봄비의 제주 일기</div>
+        <h1>제주 동쪽 오름 세 군데, 하루에 다 돌기</h1>
+        <div class="meta">봄비 · 2026. 11. 17. 9:12</div>
+        <p>아침 7시에 숙소를 나와서 다랑쉬오름부터 올랐어요. 정상까지 30분 정도인데 경사가 꽤 있어서 중간에 두 번 쉬었습니다.</p>
+        <figure>
+          <svg class="photo" viewBox="0 0 600 300" aria-hidden="true"><rect width="600" height="300" fill="#C9D8DF"/><path d="M0 210 C120 150 210 140 300 175 C390 205 470 160 600 150 L600 300 L0 300Z" fill="#8FA27A"/><path d="M180 230 C220 190 300 185 340 228 Z" fill="#6E8360"/><path d="M0 255 C150 235 420 240 600 250 L600 300 L0 300Z" fill="#A9A57A"/></svg>
+          <figcaption>다랑쉬오름 정상에서 본 아끈다랑쉬. 진짜 밥그릇 엎어놓은 모양이에요.</figcaption>
+        </figure>
+        <p>두 번째는 용눈이오름. 휴식년이 끝나고 다시 열렸다고 해서 기대했는데, 바람이 너무 불어서 모자를 두 번이나 날릴 뻔했어요.</p>
+        <p>마지막은 손지오름. 사람이 거의 없어서 해 질 무렵 억새 사이에 한참 앉아 있다 내려왔습니다.</p>
+        <figure>
+          <svg class="photo" viewBox="0 0 600 260" aria-hidden="true"><rect width="600" height="260" fill="#E6CFA8"/><circle cx="430" cy="120" r="34" fill="#F2DDB5"/><path d="M0 170 C160 140 330 150 600 165 L600 260 L0 260Z" fill="#B59B6E"/><g stroke="#8D7650" stroke-width="2"><path d="M60 260 L70 190"/><path d="M90 260 L84 200"/><path d="M120 260 L132 185"/><path d="M500 260 L494 195"/><path d="M530 260 L540 188"/></g></svg>
+          <figcaption>손지오름 억새</figcaption>
+        </figure>
+        <div class="tags">#제주오름 #다랑쉬오름 #용눈이오름 #손지오름</div>
+        <div class="reactions"><span>♡ 공감 24</span><span>댓글 9</span></div>
+        <div class="comment-box">
+          <div class="nick">마실가는사람</div>
+          <span class="filled">아끈다랑쉬가 정말 밥그릇 엎어놓은 모양이네요 ㅎㅎ 아침 7시부터 오름 세 군데라니, 봄비님 체력에 또 한 번 놀라요. 손지오름 억새 사이에 앉아 계셨을 장면이 그려져요.</span>
+          <span class="hint"><svg viewBox="0 0 30 16" aria-hidden="true"><path d="M2 8 C10 3 20 3 28 8 M22 3 L28 8 L22 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>등록은 직접!</span>
+          <button class="submit" type="button">등록</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="page right">
+    <nav class="index" aria-label="오른쪽 패널 색인">
+      <button type="button" aria-current="true">초안</button>
+      <button type="button">수첩</button>
+      <button type="button">지난 댓글</button>
+    </nav>
+    <div class="sheet">
+      <div class="sh"><h2>댓글 초안</h2><button type="button">다시 쓰기</button></div>
+
+      <div class="draft used">
+        <span class="num">1</span>
+        <div class="tone"><span>다정한 공감</span><span class="used-note">댓글창에 채움</span></div>
+        <div class="text" contenteditable="true">아끈다랑쉬가 정말 밥그릇 엎어놓은 모양이네요 ㅎㅎ 아침 7시부터 오름 세 군데라니, 봄비님 체력에 또 한 번 놀라요. 손지오름 억새 사이에 앉아 계셨을 장면이 그려져요.</div>
+        <div class="row"><button class="fill" type="button">채우기 <kbd>1</kbd></button></div>
+      </div>
+      <div class="draft">
+        <span class="num">2</span>
+        <div class="tone"><span>짧고 가볍게</span></div>
+        <div class="text" contenteditable="true">모자를 두 번이나 날릴 뻔한 용눈이오름, 사진으로도 바람이 느껴져요!</div>
+        <div class="row"><button class="fill" type="button">채우기 <kbd>2</kbd></button></div>
+      </div>
+      <div class="draft">
+        <span class="num">3</span>
+        <div class="tone"><span>질문으로 잇기</span></div>
+        <div class="text" contenteditable="true">손지오름은 처음 들어봐요. 해 질 무렵에 가야 억새가 제일 예쁜가요? 다음 제주 여행 때 꼭 넣어보고 싶어요.</div>
+        <div class="row"><button class="fill" type="button">채우기 <kbd>3</kbd></button></div>
+      </div>
+
+      <section class="block">
+        <div class="sh"><h2>봄비님 수첩</h2><button type="button">고치기</button></div>
+        <dl class="fields">
+          <dt>호칭</dt><dd>봄비님</dd>
+          <dt>말투</dt><dd>존댓말</dd>
+          <dt>친밀도</dt><dd><span class="near">●●●</span></dd>
+          <dd class="free">제주 이주 3년 차, 작년 여름 귤밭 일손 얘기 나눔</dd>
+        </dl>
+      </section>
+
+      <section class="block">
+        <div class="sh"><h2>봄비님께 남긴 댓글<small>14개</small></h2></div>
+        <ul class="past">
+          <li><span class="on">10월 28일, 「귤 따기 체험 후기」</span><q>귤 껍질 까서 하얀 실까지 다 떼어 드시는 거 저랑 똑같아요. 노지 귤이 이렇게 새콤한 줄 몰랐네요.</q></li>
+          <li><span class="on">10월 3일, 「추석 연휴 성산 일출」</span><q>새벽 5시에 줄 서신 보람이 있네요. 구름 사이로 해가 반만 나온 사진이 제일 좋아요.</q></li>
+        </ul>
+      </section>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

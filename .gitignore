@@ -1,0 +1,36 @@
+# 의존성
+node_modules/
+
+# 빌드 산출물
+out/
+dist/
+release/
+*.tsbuildinfo
+
+# 로그, 캐시
+*.log
+npm-debug.log*
+.eslintcache
+.vite/
+coverage/
+
+# 로컬 데이터 (절대 커밋 금지)
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 환경 변수, 비밀
+.env
+.env.*
+!.env.example
+
+# OS, 에디터
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
