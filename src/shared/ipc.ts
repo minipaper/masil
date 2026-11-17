@@ -35,6 +35,13 @@ export const IPC = {
   importRun: 'import:run',
   importCancel: 'import:cancel',
   importStatus: 'import:status',
+  visitsScan: 'visits:scan',
+  visitsCancel: 'visits:cancel',
+  visitsStatus: 'visits:status',
+  visitsList: 'visits:list',
+  repliesState: 'replies:state',
+  repliesGenerate: 'replies:generate',
+  repliesFill: 'replies:fill',
   findMyBlog: 'naver:find-my-blog',
   dataExport: 'data:export',
   dataImport: 'data:import',
@@ -53,6 +60,8 @@ export const IPC = {
   evCommentConfirmed: 'ev:comment-confirmed',
   evStyle: 'ev:style',
   evImportProgress: 'ev:import-progress',
+  evVisitStatus: 'ev:visit-status',
+  evReplies: 'ev:replies',
   /** main에서 설정이 바뀜 (내 블로그 찾기 등) */
   evSettings: 'ev:settings',
   evUpdate: 'ev:update'

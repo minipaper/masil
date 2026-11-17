@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   BODY_LIMIT,
   DEFAULT_TONES,
+  buildReplyPrompt,
   buildUserPrompt,
+  REPLY_TONES,
+  replySystemPrompt,
   findCliche,
   normalizeComment,
   parseDrafts,
@@ -120,5 +123,24 @@ describe('상투적 표현과 비교', () => {
   })
   it('공백 차이를 무시하고 비교한다', () => {
     expect(normalizeComment('  안녕하세요\n\n봄비님  ')).toBe('안녕하세요 봄비님')
+  })
+})
+
+describe('답글 프롬프트', () => {
+  it('내 글, 댓글, 쓴 사람, 스타일을 넣고 톤 수를 맞춘다', () => {
+    const p = buildReplyPrompt({
+      postTitle: '제주 오름 세 군데',
+      postBody: '다랑쉬오름부터 올랐어요.',
+      visitorNick: '햇살',
+      comment: '다랑쉬오름 몇 시간 걸려요?',
+      styleGuide: '문장 끝에 ㅎㅎ',
+      recentFinals: ['억새가 멋져요 ㅎㅎ'],
+      tones: REPLY_TONES
+    })
+    expect(p).toContain('1. 고마움 담아')
+    expect(p).toContain('쓴 사람: 햇살')
+    expect(p).toContain('다랑쉬오름 몇 시간')
+    expect(p).toContain('문장 끝에 ㅎㅎ')
+    expect(replySystemPrompt(2)).toContain('정확히 2개')
   })
 })

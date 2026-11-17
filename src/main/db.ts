@@ -97,6 +97,21 @@ const MIGRATIONS: string[] = [
   ALTER TABLE neighbors ADD COLUMN nickname_custom INTEGER NOT NULL DEFAULT 0;
   -- 이미 블로그 제목과 다른 이름으로 바꿔 둔 이웃은 직접 고친 것으로 본다
   UPDATE neighbors SET nickname_custom = 1 WHERE nickname != COALESCE(blog_title, '') AND nickname != blog_id;
+  `,
+  // 3: 내 글에 달린 댓글 (답방). "답방 갈 곳 찾아보기"나 내 글을 열었을 때 웹뷰에서 읽는다 (2026-11-17)
+  `
+  CREATE TABLE visitor_comments (
+    comment_no   TEXT PRIMARY KEY,
+    log_no       TEXT NOT NULL,
+    post_title   TEXT NOT NULL DEFAULT '',
+    blog_id      TEXT NOT NULL,
+    nick         TEXT NOT NULL DEFAULT '',
+    commented_at TEXT NOT NULL,
+    text         TEXT NOT NULL DEFAULT '',
+    found_at     TEXT NOT NULL
+  );
+  CREATE INDEX visitor_comments_blog ON visitor_comments(blog_id, commented_at);
+  CREATE INDEX visitor_comments_post ON visitor_comments(log_no);
   `
 ]
 

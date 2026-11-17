@@ -1,9 +1,10 @@
 import { ipcMain, session, type IpcMainEvent, type WebContents, type WebFrameMain } from 'electron'
-import { NAVER_FRAME, FILL_MESSAGE, type FillResult, type SubmitClick, type SubmitResult } from '@shared/naver-frame'
+import { NAVER_FRAME, FILL_MESSAGE, type CommentsReport, type FillResult, type SubmitClick, type SubmitResult } from '@shared/naver-frame'
+import { parsePostRef } from '@shared/blog-id'
 import { NAVER_PARTITION } from '@shared/policy'
-import type { DraftContext, PostContent } from '@shared/prompt'
-import type { CurrentPost, DraftsState } from '@shared/types'
-import { AiSetupError, describeAiError, generateDrafts } from './ai'
+import { REPLY_TONES, type DraftContext, type PostContent } from '@shared/prompt'
+import type { CurrentPost, DraftsState, RepliesState, ReplyItem } from '@shared/types'
+import { AiSetupError, describeAiError, generateDrafts, generateReplies } from './ai'
 import type { DB } from './db'
 import * as repo from './repo'
 import { getApiKey, getSettings } from './settings'
@@ -16,6 +17,10 @@ interface Events {
   /** 등록이 댓글 목록에서 확인됨 */
   commentConfirmed: (blogId: string, logNo: string) => void
   dataChanged: () => void
+  /** 내 글의 댓글과 답글 초안 */
+  replies: (s: RepliesState | null) => void
+  /** 웹뷰가 읽어 보낸 내 글 댓글 ("답방 갈 곳 찾아보기" 응답 포함) */
+  commentsReport: (r: CommentsReport) => void
 }
 
 const keyOf = (blogId: string, logNo: string): string => `${blogId}/${logNo}`
@@ -32,6 +37,8 @@ export class PostSession {
   private lastFilled = new Map<string, { text: string; tone: string }>()
   private generating = new Set<string>()
   private pendingFills = new Map<string, (r: FillResult) => void>()
+  /** 지금 열린 글이 내 글이면 그 댓글과 답글 초안 */
+  private replies: RepliesState | null = null
 
   constructor(
     private readonly db: DB,
@@ -58,7 +65,30 @@ export class PostSession {
       const nickChanged = !!post.authorNick && repo.setNaverNick(db, post.blogId, post.authorNick)
       if (likedChanged || nickChanged) this.events.dataChanged()
       this.events.currentPost(this.currentPost())
-      this.loadDrafts(post)
+      if (this.isMine(post.blogId)) {
+        // 내 글: 댓글 초안 대신, 달린 댓글에 답글 초안을 쓴다
+        this.drafts = null
+        this.openReplies(post)
+        e.senderFrame?.send(NAVER_FRAME.watchComments, { logNo: post.logNo })
+      } else {
+        this.setReplies(null)
+        this.loadDrafts(post)
+      }
+    })
+
+    listen<CommentsReport>(NAVER_FRAME.comments, (e, r) => {
+      if (!fromNaver(e) || !r?.logNo) return
+      // 내 블로그 글 화면에서 온 것만 받는다
+      const ref = parsePostRef(e.senderFrame?.url ?? '')
+      const myBlogId = getSettings(db).myBlogId
+      if (!ref || !myBlogId || ref.blogId !== myBlogId || ref.logNo !== r.logNo) return
+      // "답방 갈 곳 찾아보기" 응답(requestId 있음)은 VisitorScan이 저장하고 새 댓글 수를 센다
+      if (!r.requestId && r.state === 'comments' && r.comments.length > 0) {
+        const title = r.title || (this.content?.logNo === r.logNo ? this.content.title : '')
+        if (repo.upsertVisitorComments(db, r.comments.map((c) => ({ ...c, postTitle: title }))) > 0) this.events.dataChanged()
+      }
+      this.events.commentsReport(r)
+      if (this.replies?.logNo === r.logNo) this.mergeReplies(r)
     })
 
     listen<FillResult>(NAVER_FRAME.fillResult, (e, r) => {
@@ -67,7 +97,8 @@ export class PostSession {
     })
 
     listen<SubmitClick>(NAVER_FRAME.submit, (e, s) => {
-      if (!fromNaver(e) || !s?.text) return
+      // 내 글에 단 답글은 댓글 기록(이웃에게 남긴 댓글)에 넣지 않는다
+      if (!fromNaver(e) || !s?.text || this.isMine(s.blogId)) return
       const title = this.content && keyOf(this.content.blogId, this.content.logNo) === keyOf(s.blogId, s.logNo) ? this.content.title : ''
       const filled = this.lastFilled.get(keyOf(s.blogId, s.logNo)) ?? null
       repo.insertPendingComment(db, {
@@ -82,7 +113,7 @@ export class PostSession {
     })
 
     listen<SubmitResult>(NAVER_FRAME.submitResult, (e, r) => {
-      if (!fromNaver(e)) return
+      if (!fromNaver(e) || this.isMine(r.blogId)) return
       const rec = repo.resolvePendingComment(db, r.blogId, r.logNo, r.text, r.confirmed)
       if (rec && r.confirmed) {
         const post = repo.findPostByLogNo(db, r.blogId, r.logNo)
@@ -111,6 +142,115 @@ export class PostSession {
     this.frame = null
     this.drafts = null
     this.events.currentPost(null)
+    this.setReplies(null)
+  }
+
+  private isMine(blogId: string): boolean {
+    const mine = getSettings(this.db).myBlogId
+    return !!mine && mine === blogId
+  }
+
+  repliesState(): RepliesState | null {
+    return this.replies
+  }
+
+  private setReplies(s: RepliesState | null): void {
+    if (s === null && this.replies === null) return
+    this.replies = s
+    this.events.replies(s)
+  }
+
+  private toItem(c: { commentNo: string; blogId: string; nick: string; text: string; at: string }, prev?: ReplyItem): ReplyItem {
+    return prev
+      ? { ...prev, nick: c.nick || prev.nick, text: c.text || prev.text }
+      : { commentNo: c.commentNo, blogId: c.blogId, nick: c.nick, text: c.text, at: c.at, status: 'idle', drafts: [], error: null }
+  }
+
+  /** 내 글을 열면, 이미 읽어 둔 댓글부터 보여 준다 */
+  private openReplies(post: PostContent): void {
+    const items = repo.visitorCommentsForPost(this.db, post.logNo).map((c) => this.toItem(c))
+    this.setReplies({ logNo: post.logNo, title: post.title, items, needsOpen: false })
+  }
+
+  private mergeReplies(r: CommentsReport): void {
+    const cur = this.replies
+    if (!cur) return
+    if (r.state !== 'comments') {
+      this.setReplies({ ...cur, needsOpen: r.state === 'closed' && cur.items.length === 0 })
+      return
+    }
+    const prev = new Map(cur.items.map((i) => [i.commentNo, i]))
+    const seen = new Set<string>()
+    const items: ReplyItem[] = []
+    for (const c of r.comments) {
+      seen.add(c.commentNo)
+      items.push(this.toItem(c, prev.get(c.commentNo)))
+    }
+    // 화면에서 안 보이는 쪽(다른 페이지)의 댓글은 그대로 둔다
+    for (const i of cur.items) if (!seen.has(i.commentNo)) items.push(i)
+    items.sort((a, b) => a.at.localeCompare(b.at))
+    this.setReplies({ ...cur, title: r.title || cur.title, items, needsOpen: false })
+  }
+
+  private patchReply(commentNo: string, patch: Partial<ReplyItem>): void {
+    const cur = this.replies
+    if (!cur) return
+    this.setReplies({ ...cur, items: cur.items.map((i) => (i.commentNo === commentNo ? { ...i, ...patch } : i)) })
+  }
+
+  /** 내 글에 달린 댓글 하나에 답글 초안을 만든다 */
+  async generateReply(commentNo: string): Promise<void> {
+    const post = this.content
+    const item = this.replies?.items.find((i) => i.commentNo === commentNo)
+    if (!post || !item || item.status === 'loading') return
+    this.patchReply(commentNo, { status: 'loading', error: null })
+    try {
+      const settings = getSettings(this.db)
+      const drafts = await generateReplies(settings.ai, getApiKey(this.db), {
+        postTitle: post.title,
+        postBody: post.body,
+        visitorNick: item.nick,
+        comment: item.text,
+        styleGuide: repo.activeStyleGuide(this.db),
+        recentFinals: repo.recentFinals(this.db, settings.ai.examples.recent, post.blogId),
+        tones: REPLY_TONES
+      })
+      this.patchReply(commentNo, { status: 'ready', drafts, error: null })
+    } catch (e) {
+      this.patchReply(commentNo, { status: 'error', error: describeAiError(e) })
+    }
+  }
+
+  /** 답글 초안을 그 댓글의 답글 입력칸에 채운다. 등록은 사용자가 직접 누른다. */
+  async fillReply(commentNo: string, text: string): Promise<{ ok: boolean; message: string }> {
+    const post = this.content
+    if (!post || !this.isMine(post.blogId)) return { ok: false, message: FILL_MESSAGE['no-post'] }
+    const clean = text.trim()
+    if (!clean) return { ok: false, message: '채울 내용이 비어 있어요.' }
+    const result = await this.ask((requestId) => this.frame?.send(NAVER_FRAME.fillReply, { requestId, logNo: post.logNo, commentNo, text: clean }))
+    if (!result) return { ok: false, message: FILL_MESSAGE.timeout }
+    if (result.outcome === 'filled') this.naver()?.focus()
+    const message = result.outcome === 'filled' ? '답글 칸에 채웠어요. 다듬은 뒤 등록은 직접 눌러 주세요.' : FILL_MESSAGE[result.outcome]
+    return { ok: result.outcome === 'filled', message }
+  }
+
+  /** 글 프레임에 채우기를 부탁하고 결과를 기다린다 */
+  private ask(send: (requestId: string) => void): Promise<FillResult | null> {
+    const frame = this.frame
+    if (!frame || frame.isDestroyed()) return Promise.resolve(null)
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    return new Promise<FillResult | null>((resolve) => {
+      const timer = setTimeout(() => {
+        this.pendingFills.delete(requestId)
+        resolve(null)
+      }, 12_000)
+      this.pendingFills.set(requestId, (r) => {
+        clearTimeout(timer)
+        this.pendingFills.delete(requestId)
+        resolve(r)
+      })
+      send(requestId)
+    })
   }
 
   /** 지금 열린 글에서 읽은 글쓴이 닉네임 (그 블로그 글이 열려 있을 때만) */
@@ -226,19 +366,7 @@ export class PostSession {
     const clean = text.trim()
     if (!clean) return { ok: false, message: '채울 내용이 비어 있어요.' }
 
-    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const result = await new Promise<FillResult | null>((resolve) => {
-      const timer = setTimeout(() => {
-        this.pendingFills.delete(requestId)
-        resolve(null)
-      }, 12_000)
-      this.pendingFills.set(requestId, (r) => {
-        clearTimeout(timer)
-        this.pendingFills.delete(requestId)
-        resolve(r)
-      })
-      frame.send(NAVER_FRAME.fill, { requestId, logNo: post.logNo, text: clean })
-    })
+    const result = await this.ask((requestId) => frame.send(NAVER_FRAME.fill, { requestId, logNo: post.logNo, text: clean }))
 
     if (!result) return { ok: false, message: FILL_MESSAGE.timeout }
     if (result.outcome === 'filled') {

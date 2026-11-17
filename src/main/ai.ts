@@ -1,6 +1,16 @@
 import OpenAI from 'openai'
 import type { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
-import { buildUserPrompt, findCliche, parseDrafts, systemPrompt, type Draft, type DraftContext } from '@shared/prompt'
+import {
+  buildReplyPrompt,
+  buildUserPrompt,
+  findCliche,
+  parseDrafts,
+  replySystemPrompt,
+  systemPrompt,
+  type Draft,
+  type DraftContext,
+  type ReplyContext
+} from '@shared/prompt'
 import { buildStylePrompt, parseStyleGuide, styleSystemPrompt } from '@shared/style'
 import type { AiSettings, AiTestResult } from '@shared/types'
 import { isOptionRejected, requestVariants } from '@shared/ai-options'
@@ -103,6 +113,16 @@ export async function generateStyleGuide(
 export const DEFAULT_TEST_PROMPT = '연결 확인이에요. 한 문장으로 짧게 인사해 주세요.'
 
 /** 설정 화면의 "보내 보기": 테스트 문장을 보내고 모델의 답을 그대로 돌려준다 */
+/** 내 글에 달린 댓글 하나에 답글 초안을 만든다 */
+export async function generateReplies(ai: AiSettings, apiKey: string | null, ctx: ReplyContext): Promise<Draft[]> {
+  const api = client(ai, apiKey)
+  const messages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: replySystemPrompt(ctx.tones.length) },
+    { role: 'user', content: buildReplyPrompt(ctx) }
+  ]
+  return parseDrafts(await complete(api, ai, messages), ctx.tones)
+}
+
 export async function testConnection(ai: AiSettings, apiKey: string | null, prompt?: string): Promise<AiTestResult> {
   const started = Date.now()
   try {

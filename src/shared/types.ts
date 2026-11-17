@@ -88,6 +88,8 @@ export interface Settings {
   myBlogId: string | null
   paneWidths: { left: number; right: number }
   rightCollapsed: boolean
+  /** "답방 갈 곳 찾아보기"에서 여는 내 최신 글 수 */
+  replyCheckPosts: number
   ai: AiSettings
   /** API 키 저장 여부 (키 자체는 renderer로 보내지 않는다) */
   hasApiKey: boolean
@@ -203,4 +205,50 @@ export interface AiTestResult {
   ms: number
   /** 실패했을 때 서버가 보낸 오류 내용 */
   detail: string | null
+}
+
+// ───────── 답방 (docs/DECISIONS.md "답방") ─────────
+
+export interface VisitScanStatus {
+  running: boolean
+  /** 연 글 수 / 열 글 수 */
+  done: number
+  total: number
+  /** 이번에 새로 찾은 댓글 수 */
+  found: number
+  lastAt: string | null
+  /** 안내나 오류 (예: 내 블로그에 글이 없어요) */
+  message: string | null
+}
+
+export interface ReturnVisitItem {
+  blogId: string
+  nick: string
+  lastAt: string
+  logNo: string
+  postTitle: string
+  count: number
+  /** 이웃 명단에 있으면 그 이웃 */
+  neighborId: number | null
+  name: string
+}
+
+/** 내 글에 달린 댓글과 그 답글 초안 */
+export interface ReplyItem {
+  commentNo: string
+  blogId: string
+  nick: string
+  text: string
+  at: string
+  status: 'idle' | 'loading' | 'ready' | 'error'
+  drafts: { tone: string; text: string }[]
+  error: string | null
+}
+
+export interface RepliesState {
+  logNo: string
+  title: string
+  items: ReplyItem[]
+  /** 댓글 영역이 아직 펼쳐지지 않아 읽지 못했다 */
+  needsOpen: boolean
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { MIN_CHECK_INTERVAL_MINUTES } from '@shared/policy'
+  import { REPLY_CHECK_POSTS } from '@shared/visitors'
   import type { AiTestResult, Settings, UpdateStatus } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
   import StyleGuideSection from './StyleGuideSection.svelte'
@@ -27,7 +28,8 @@
     launchAtLogin: initial.launchAtLogin,
     tones: initial.ai.tones.map((t) => ({ ...t })),
     examples: { ...initial.ai.examples },
-    myBlogId: initial.myBlogId ?? ''
+    myBlogId: initial.myBlogId ?? '',
+    replyCheckPosts: initial.replyCheckPosts
   })
   // 내 블로그 찾기는 웹뷰에서 끝나므로, 그사이 main이 알려 준 값을 반영한다
   $effect(() => {
@@ -81,6 +83,7 @@
       quietHours: { enabled: form.quietEnabled, start: form.quietStart, end: form.quietEnd },
       launchAtLogin: form.launchAtLogin,
       myBlogId: form.myBlogId.trim() || null,
+      replyCheckPosts: Math.min(REPLY_CHECK_POSTS.max, Math.max(REPLY_CHECK_POSTS.min, Math.round(form.replyCheckPosts || REPLY_CHECK_POSTS.default))),
       ai: {
         ...initial.ai,
         baseUrl: form.baseUrl,
@@ -272,6 +275,13 @@
           </span>
         </label>
         <p class="hint">이웃 가져오기에 쓰고, 내 블로그는 이웃 명단에 넣지 않아요. 찾기를 누르면 웹뷰에 내 블로그를 열어 주소에서 ID를 읽어요.</p>
+        <label class="field">
+          <span>답방 찾기</span>
+          <span class="inline">
+            내 최신 글 <input type="number" min={REPLY_CHECK_POSTS.min} max={REPLY_CHECK_POSTS.max} bind:value={form.replyCheckPosts} />편
+          </span>
+        </label>
+        <p class="hint">"답방 갈 곳 찾아보기"를 누르면 이만큼의 최신 글을 차례로 열어 댓글 단 분을 찾아요. 글마다 몇 초씩 쉬어서, 많을수록 오래 걸려요.</p>
       </section>
 
       <section>

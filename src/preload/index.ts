@@ -72,6 +72,19 @@ const api: MasilApi = {
     status: () => ipcRenderer.invoke(IPC.importStatus),
     onProgress: (cb) => on(IPC.evImportProgress, cb)
   },
+  visits: {
+    scan: () => ipcRenderer.invoke(IPC.visitsScan),
+    cancel: () => ipcRenderer.invoke(IPC.visitsCancel),
+    status: () => ipcRenderer.invoke(IPC.visitsStatus),
+    list: () => ipcRenderer.invoke(IPC.visitsList),
+    onStatus: (cb) => on(IPC.evVisitStatus, cb)
+  },
+  replies: {
+    state: () => ipcRenderer.invoke(IPC.repliesState),
+    generate: (commentNo) => ipcRenderer.invoke(IPC.repliesGenerate, commentNo),
+    fill: (commentNo, text) => ipcRenderer.invoke(IPC.repliesFill, commentNo, text),
+    onState: (cb) => on(IPC.evReplies, cb)
+  },
   findMyBlog: () => ipcRenderer.invoke(IPC.findMyBlog),
   onSettings: (cb) => on(IPC.evSettings, cb),
   onCommentConfirmed: (cb) => on(IPC.evCommentConfirmed, cb),

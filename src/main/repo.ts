@@ -1,3 +1,4 @@
+import type { VisitorComment } from '@shared/visitors'
 import type { RssItem } from '@shared/rss'
 import type { StyleGuide } from '@shared/style'
 import { NAME_SQL, baseName } from '@shared/neighbor-name'
@@ -546,4 +547,50 @@ export function setNaverNick(db: DB, blogId: string, nick: string): boolean {
     .prepare(`UPDATE neighbors SET naver_nick = ? WHERE blog_id = ? AND COALESCE(naver_nick, '') != ?`)
     .run(clean, blogId, clean)
   return info.changes > 0
+}
+
+// ───────── 답방: 내 글에 달린 댓글 ─────────
+
+export function upsertVisitorComments(db: DB, rows: (VisitorComment & { postTitle: string })[]): number {
+  const ins = db.prepare(
+    `INSERT INTO visitor_comments (comment_no, log_no, post_title, blog_id, nick, commented_at, text, found_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(comment_no) DO UPDATE SET nick = excluded.nick, text = excluded.text,
+       post_title = CASE WHEN excluded.post_title != '' THEN excluded.post_title ELSE visitor_comments.post_title END`
+  )
+  const exists = db.prepare(`SELECT 1 FROM visitor_comments WHERE comment_no = ?`)
+  let added = 0
+  db.transaction(() => {
+    for (const r of rows) {
+      if (!exists.get(r.commentNo)) added++
+      ins.run(r.commentNo, r.logNo, r.postTitle, r.blogId, r.nick, r.at, r.text, now())
+    }
+  })()
+  return added
+}
+
+export function visitorCommentsForPost(db: DB, logNo: string): VisitorComment[] {
+  return db
+    .prepare(
+      `SELECT comment_no AS commentNo, log_no AS logNo, blog_id AS blogId, nick, commented_at AS at, text
+       FROM visitor_comments WHERE log_no = ? ORDER BY commented_at ASC`
+    )
+    .all(logNo) as VisitorComment[]
+}
+
+/** 답방 판단에 쓰는 재료: 최근 댓글 단 사람들과, 내가 남긴 댓글 시각 */
+export function returnVisitInputs(db: DB, sinceIso: string): {
+  visitors: (VisitorComment & { postTitle: string })[]
+  myComments: { blogId: string; at: string }[]
+} {
+  const visitors = db
+    .prepare(
+      `SELECT comment_no AS commentNo, log_no AS logNo, post_title AS postTitle, blog_id AS blogId, nick, commented_at AS at, '' AS text
+       FROM visitor_comments WHERE commented_at >= ?`
+    )
+    .all(sinceIso) as (VisitorComment & { postTitle: string })[]
+  const myComments = db
+    .prepare(`SELECT blog_id AS blogId, clicked_at AS at FROM comments WHERE status != 'failed' AND clicked_at >= ?`)
+    .all(sinceIso) as { blogId: string; at: string }[]
+  return { visitors, myComments }
 }

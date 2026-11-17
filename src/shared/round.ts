@@ -52,9 +52,10 @@ export function roundKey(e: { key: string; ctrlKey: boolean; metaKey: boolean; a
  * 마실 중 다음에 열 글: 처리 전(새 글·읽음) 글 중 가장 오래된 것, 이번 바퀴에 이미 들른 글은 뺀다.
  * 댓글 없이 넘긴 글은 "읽음"으로 남아 있으므로 빼지 않으면 같은 글을 계속 다시 연다.
  */
-export function pickNextInRound(posts: Post[], visited: readonly number[]): Post | null {
+export function pickNextInRound(posts: Post[], visited: readonly number[], first: ReadonlySet<string> = new Set()): Post | null {
   const seen = new Set(visited)
   const candidates = posts.filter((p) => (p.status === 'new' || p.status === 'read') && !seen.has(p.id))
-  candidates.sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))
+  // 답방할 집의 글을 먼저, 그다음 오래된 글부터
+  candidates.sort((a, b) => Number(first.has(b.blogId)) - Number(first.has(a.blogId)) || a.publishedAt.localeCompare(b.publishedAt))
   return candidates[0] ?? null
 }

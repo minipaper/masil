@@ -1,3 +1,4 @@
+import { VisitorScan } from './visitor-scan'
 import { join } from 'node:path'
 import { app, BrowserWindow, Notification, session, shell, type Tray } from 'electron'
 import { parsePostRef } from '@shared/blog-id'
@@ -186,8 +187,11 @@ if (!app.requestSingleInstanceLock()) {
         send(IPC.evCommentConfirmed, { blogId, logNo })
         style.maybePropose()
       },
-      dataChanged
+      dataChanged,
+      replies: (s) => send(IPC.evReplies, s),
+      commentsReport: (r) => visits.handleReport(r)
     })
+    const visits = new VisitorScan(db, () => naverView, { status: (s) => send(IPC.evVisitStatus, s), dataChanged })
     const style = new StyleService(db, (s) => send(IPC.evStyle, s))
     const importer = new NeighborImport(
       db,
@@ -223,6 +227,7 @@ if (!app.requestSingleInstanceLock()) {
       },
       style,
       importer,
+      visits,
       window: () => mainWindow,
       findMyBlog,
       updater

@@ -18,8 +18,23 @@ export const SEL = {
   likeButton: '.u_likeit_list_btn, .u_likeit_button',
   likeOn: '.u_likeit_button._face.on, .u_likeit_list_btn.on',
 
-  /** 접힌 댓글 영역을 펼치는 토글. 앱이 누를 수 있는 유일한 버튼 (CLAUDE.md 원칙 1) */
+  /**
+   * 접힌 댓글 영역을 펼치는 토글 (CLAUDE.md 원칙 1의 허용 버튼).
+   * 사용자가 "채우기"나 "답방 갈 곳 찾아보기"를 눌렀을 때만 누른다.
+   */
   commentToggle: (logNo: string): string => `#Comi${logNo}`,
+  /** 댓글 목록 (확인: 2026-11-17). li의 data-info에 댓글 번호, 시각, 답글 단계, 내 댓글 여부가 있다 */
+  commentList: '.u_cbox_list',
+  commentItem: '.u_cbox_comment',
+  commentNick: '.u_cbox_nick',
+  commentText: '.u_cbox_contents',
+  commentProfile: 'a.u_cbox_thumb_wrap, a.u_cbox_name',
+  /**
+   * 댓글의 "답글" 버튼 (CLAUDE.md 원칙 1의 허용 버튼). 답글 입력칸을 열기만 한다.
+   * 사용자가 그 댓글의 답글 초안에서 "채우기"를 눌렀을 때만 누른다.
+   */
+  replyButton: (commentNo: string): string => `.u_cbox_btn_reply[data-param="${commentNo}"]`,
+  replyInput: (commentNo: string): string => `[id$="__reply_textarea_${commentNo}"][contenteditable]`,
   /** 댓글 모듈(cbox)이 로드되었는지 */
   cbox: '.u_cbox',
   commentWrite: '.u_cbox_write_wrap, .u_cbox_write',

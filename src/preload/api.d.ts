@@ -11,6 +11,9 @@ import type {
   UpdateStatus,
   DraftsState,
   NaverViewState,
+  RepliesState,
+  ReturnVisitItem,
+  VisitScanStatus,
   Neighbor,
   NeighborPatch,
   Post,
@@ -92,6 +95,23 @@ export interface MasilApi {
     cancel(): Promise<void>
     status(): Promise<ImportProgress>
     onProgress(cb: (p: ImportProgress) => void): Unsubscribe
+  }
+  /** 답방: 내 최신 글에 댓글 단 사람 찾기 (사용자가 눌렀을 때만 웹뷰로 내 글을 연다) */
+  visits: {
+    scan(): Promise<void>
+    cancel(): Promise<void>
+    status(): Promise<VisitScanStatus>
+    /** 답방할 집 */
+    list(): Promise<ReturnVisitItem[]>
+    onStatus(cb: (s: VisitScanStatus) => void): Unsubscribe
+  }
+  /** 내 글에 달린 댓글의 답글 초안 */
+  replies: {
+    state(): Promise<RepliesState | null>
+    generate(commentNo: string): Promise<void>
+    /** 답글 입력칸에 채우기만 한다. 등록은 사용자가 직접 누른다. */
+    fill(commentNo: string, text: string): Promise<{ ok: boolean; message: string }>
+    onState(cb: (s: RepliesState | null) => void): Unsubscribe
   }
   /** 웹뷰에서 내 블로그를 열어 ID를 알아낸다 (찾으면 onSettings로 알려 준다) */
   findMyBlog(): Promise<void>

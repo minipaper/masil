@@ -1,3 +1,4 @@
+import { REPLY_CHECK_POSTS } from '@shared/visitors'
 import { parseBlogId } from '@shared/blog-id'
 import { safeStorage } from 'electron'
 import { DEFAULT_CHECK_INTERVAL_MINUTES, clampCheckInterval } from '@shared/policy'
@@ -24,6 +25,7 @@ export const DEFAULT_SETTINGS: StoredSettings = {
   myBlogId: null,
   paneWidths: { left: 352, right: 380 },
   rightCollapsed: false,
+  replyCheckPosts: REPLY_CHECK_POSTS.default,
   ai: DEFAULT_AI
 }
 
@@ -41,6 +43,7 @@ function normalize(s: StoredSettings): StoredSettings {
     ...s,
     checkIntervalMinutes: clampCheckInterval(s.checkIntervalMinutes),
     myBlogId: s.myBlogId ? parseBlogId(String(s.myBlogId)) : null,
+    replyCheckPosts: clampInt(s.replyCheckPosts, REPLY_CHECK_POSTS.min, REPLY_CHECK_POSTS.max, REPLY_CHECK_POSTS.default),
     paneWidths: {
       left: clampInt(s.paneWidths.left, 280, 560, 352),
       right: clampInt(s.paneWidths.right, 300, 560, 380)

@@ -1,7 +1,19 @@
 import { pickNextInRound, summarizeRound } from '@shared/round'
-import type { CheckStatus, CommentRecord, CurrentPost, DraftsState, NaverViewState, Neighbor, Post, Settings } from '@shared/types'
+import type {
+  CheckStatus,
+  CommentRecord,
+  CurrentPost,
+  DraftsState,
+  NaverViewState,
+  Neighbor,
+  Post,
+  RepliesState,
+  ReturnVisitItem,
+  Settings,
+  VisitScanStatus
+} from '@shared/types'
 
-export type LeftTab = 'today' | 'neighbors' | 'quiet'
+export type LeftTab = 'today' | 'visits' | 'neighbors' | 'quiet'
 
 const api = window.masil
 
@@ -18,6 +30,10 @@ class AppState {
   neighborQuery = $state('')
   currentPost = $state<CurrentPost | null>(null)
   drafts = $state<DraftsState | null>(null)
+  /** 답방: 찾아보기 진행 상태, 답방할 집, 내 글의 답글 초안 */
+  visitStatus = $state<VisitScanStatus | null>(null)
+  returnVisits = $state<ReturnVisitItem[]>([])
+  replies = $state<RepliesState | null>(null)
   history = $state<CommentRecord[]>([])
   settingsOpen = $state(false)
   /** 이웃 가져오기 패널 (왼쪽) */
@@ -43,6 +59,10 @@ class AppState {
     const id = this.currentPost?.neighborId ?? null
     return id == null ? null : (this.neighbors.find((n) => n.id === id) ?? null)
   })
+  /** 답방할 집의 블로그 ID */
+  returnVisitIds = $derived(new Set(this.returnVisits.map((r) => r.blogId)))
+  /** 웹뷰에 열린 글이 내 글인지 (오른쪽에 답글 초안을 보여 준다) */
+  isMyPost = $derived(!!this.currentPost && !!this.settings?.myBlogId && this.currentPost.blogId === this.settings.myBlogId)
   historyBlogId = $derived(this.currentPost?.blogId ?? this.selectedNeighbor?.blogId ?? null)
   pendingCount = $derived(this.posts.filter((p) => p.status === 'new' || p.status === 'read').length)
   /** 지금 연 글을 뺀 나머지 들를 글 수 ("다음 글" 버튼용) */
@@ -65,6 +85,11 @@ class AppState {
       void this.loadHistory()
     })
     api.drafts.onState((s) => (this.drafts = s))
+    api.replies.onState((s) => (this.replies = s))
+    api.visits.onStatus((s) => {
+      this.visitStatus = s
+      if (!s.running) void this.refresh()
+    })
     api.onSettings((s) => (this.settings = s))
     api.onCommentConfirmed((c) => {
       // 마실 중이면 등록이 확인된 뒤 잠깐 보여 주고 다음 글로
@@ -76,13 +101,17 @@ class AppState {
       if (blogId === this.historyBlogId) void this.loadHistory()
     })
 
-    const [settings, check, naver, current, drafts] = await Promise.all([
+    const [settings, check, naver, current, drafts, replies, visitStatus] = await Promise.all([
       api.settings.get(),
       api.check.status(),
       api.naver.state(),
       api.drafts.current(),
-      api.drafts.state()
+      api.drafts.state(),
+      api.replies.state(),
+      api.visits.status()
     ])
+    this.replies = replies
+    this.visitStatus = visitStatus
     this.settings = settings
     this.check = check
     this.naver = naver
@@ -132,7 +161,7 @@ class AppState {
   private async openRoundNext(): Promise<void> {
     const round = this.round
     if (!round) return
-    const next = pickNextInRound(this.posts, round.visited)
+    const next = pickNextInRound(this.posts, round.visited, this.returnVisitIds)
     if (!next) {
       this.setFinished(true)
       return
@@ -152,9 +181,10 @@ class AppState {
   }
 
   async refresh(): Promise<void> {
-    const [posts, neighbors] = await Promise.all([api.posts.list(), api.neighbors.list()])
+    const [posts, neighbors, returnVisits] = await Promise.all([api.posts.list(), api.neighbors.list(), api.visits.list()])
     this.posts = posts
     this.neighbors = neighbors
+    this.returnVisits = returnVisits
   }
 
   async saveSettings(patch: Partial<Settings>): Promise<void> {

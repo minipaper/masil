@@ -1,3 +1,4 @@
+import type { VisitorScan } from './visitor-scan'
 import { ipcMain } from 'electron'
 import { addressToUrl, parseBlogId } from '@shared/blog-id'
 import { IPC, type NaverNav } from '@shared/ipc'
@@ -27,6 +28,7 @@ interface Ctx {
   onSettingsChanged: (s: Settings) => void
   style: StyleService
   importer: NeighborImport
+  visits: VisitorScan
   window: () => BrowserWindow | null
   /** 웹뷰에서 "내 블로그"를 열어 ID를 알아낸다 */
   findMyBlog: () => void
@@ -127,6 +129,19 @@ export function registerIpc(ctx: Ctx): void {
   })
   ipcMain.handle(IPC.aiTest, (_e, prompt?: string) =>
     testConnection(getSettings(db).ai, getApiKey(db), typeof prompt === 'string' ? prompt : undefined)
+  )
+
+  // ── 답방: 내 글에 댓글 단 사람과 답글 ──
+  ipcMain.handle(IPC.visitsScan, () => ctx.visits.run())
+  ipcMain.handle(IPC.visitsCancel, () => ctx.visits.cancel())
+  ipcMain.handle(IPC.visitsStatus, () => ctx.visits.getStatus())
+  ipcMain.handle(IPC.visitsList, () => ctx.visits.returnVisits())
+  ipcMain.handle(IPC.repliesState, () => ctx.postSession()?.repliesState() ?? null)
+  ipcMain.handle(IPC.repliesGenerate, (_e, commentNo: string) => ctx.postSession()?.generateReply(String(commentNo ?? '')))
+  ipcMain.handle(
+    IPC.repliesFill,
+    (_e, commentNo: string, text: string) =>
+      ctx.postSession()?.fillReply(String(commentNo ?? ''), String(text ?? '')) ?? { ok: false, message: '열린 글이 없어요.' }
   )
 
   // ── 문체 가이드 ──

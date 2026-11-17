@@ -2,6 +2,7 @@
   import type { NeighborPatch } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
   import Drafts from './Drafts.svelte'
+  import Replies from './Replies.svelte'
   import History from './History.svelte'
   import MemoEditor from './MemoEditor.svelte'
 
@@ -42,15 +43,15 @@
   <div class="sheet" bind:this={sheet}>
     <section id="sec-drafts">
       <div class="sh">
-        <h2>댓글 초안</h2>
+        <h2>{appState.isMyPost ? '내 글에 달린 댓글' : '댓글 초안'}</h2>
         <div class="sh-btns">
-          {#if appState.currentPost && !appState.drafts?.needsSetup}
+          {#if appState.currentPost && !appState.isMyPost && !appState.drafts?.needsSetup}
             <button type="button" disabled={appState.drafts?.status === 'loading'} onclick={() => window.masil.drafts.generate()}>다시 쓰기</button>
           {/if}
           <button type="button" onclick={oncollapse} aria-label="오른쪽 패널 접기">접기</button>
         </div>
       </div>
-      <Drafts />
+      {#if appState.isMyPost}<Replies />{:else}<Drafts />{/if}
     </section>
 
     <section id="sec-memo" class="block">

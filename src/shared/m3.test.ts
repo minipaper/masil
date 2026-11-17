@@ -3,6 +3,7 @@ import { extractBuddies } from './buddy'
 import { baseName, matchesNeighbor, shownName } from './neighbor-name'
 import { isOptionRejected, requestVariants } from './ai-options'
 import { addressToUrl } from './blog-id'
+import { parseCommentInfo, pickReturnVisits, toIso } from './visitors'
 import { pickNextInRound, roundKey, summarizeRound } from './round'
 import { STYLE_GUIDE_EVERY, buildStylePrompt, diffLines, nextStyleAt, parseStyleGuide, styleGuideDue } from './style'
 import type { Post } from './types'
@@ -135,6 +136,10 @@ describe('마실 중 다음 글', () => {
     expect(pickNextInRound(posts, [])?.id).toBe(3)
     expect(pickNextInRound(posts, [3])?.id).toBe(1)
     expect(pickNextInRound(posts, [3, 1, 2])).toBeNull()
+    // 답방할 집의 글이 먼저
+    const withVisitor = [...posts, post({ id: 5, blogId: 'visitor', status: 'new', publishedAt: '2026-11-17T00:00:00.000Z' })]
+    expect(pickNextInRound(withVisitor, [], new Set(['visitor']))?.id).toBe(5)
+    expect(pickNextInRound(withVisitor, [5], new Set(['visitor']))?.id).toBe(3)
   })
 })
 
@@ -197,5 +202,41 @@ describe('주소창 입력', () => {
     expect(addressToUrl('https://example.com/springrain')).toBeNull()
     expect(addressToUrl('evilnaver.com')).toBeNull()
     expect(addressToUrl('  ')).toBeNull()
+  })
+})
+
+describe('답방', () => {
+  it('댓글 data-info를 읽는다', () => {
+    const info = parseCommentInfo(
+      "commentNo:'900000000000000001',deleted:false,best:false,visible:true,secret:false,manager:false,mine:false,report:undefined,objectId:'100000001_201_223000000001',replyLevel:1,parentCommentNo:'900000000000000001',pick:false,regTime:'2026-11-17T16:03:37+0900'"
+    )
+    expect(info).toEqual({ commentNo: '900000000000000001', mine: false, deleted: false, secret: false, replyLevel: 1, regTime: '2026-11-17T16:03:37+0900' })
+    expect(parseCommentInfo("commentNo:'1',mine:true,replyLevel:2")?.mine).toBe(true)
+    expect(parseCommentInfo('')).toBeNull()
+    expect(toIso('2026-11-17T16:03:37+0900')).toBe('2026-11-17T07:03:37.000Z')
+  })
+
+  const now = new Date('2026-11-20T00:00:00Z')
+  const v = (blogId: string, at: string, logNo = '1') => ({ commentNo: at, logNo, blogId, nick: blogId + '닉', at, text: '', postTitle: '내 글 ' + logNo })
+
+  it('내 글에 댓글 단 뒤로 내가 댓글을 안 남긴 사람만, 최근 순으로', () => {
+    const list = pickReturnVisits(
+      [v('rain', '2026-11-18T00:00:00.000Z'), v('sun', '2026-11-19T00:00:00.000Z', '2'), v('rain', '2026-11-17T00:00:00.000Z'), v('wind', '2026-11-18T00:00:00.000Z')],
+      [{ blogId: 'wind', at: '2026-11-18T05:00:00.000Z' }],
+      'me',
+      now
+    )
+    expect(list.map((r) => r.blogId)).toEqual(['sun', 'rain'])
+    expect(list[1]).toMatchObject({ count: 2, lastAt: '2026-11-18T00:00:00.000Z' })
+  })
+
+  it('내가 답방한 뒤 또 댓글을 달면 다시 답방할 집, 30일이 지나면 빠진다, 내 댓글은 뺀다', () => {
+    const list = pickReturnVisits(
+      [v('rain', '2026-11-19T00:00:00.000Z'), v('old', '2026-10-01T00:00:00.000Z'), v('me', '2026-11-19T00:00:00.000Z')],
+      [{ blogId: 'rain', at: '2026-11-18T00:00:00.000Z' }],
+      'me',
+      now
+    )
+    expect(list.map((r) => r.blogId)).toEqual(['rain'])
   })
 })

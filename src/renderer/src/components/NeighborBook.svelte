@@ -106,7 +106,7 @@
       <li class:quiet={quiet && isQuiet(n)}>
         <div class="head">
           <div class="who">
-            <span class="nm">{n.honorific || n.name}</span>
+            <span class="nm">{n.honorific || n.name}{#if appState.returnVisitIds.has(n.blogId)}<span class="visit" title="내 글에 댓글을 달아 준 이웃이에요">답방</span>{/if}</span>
             <span class="id">{n.blogId}{#if n.blogTitle && n.blogTitle !== n.name}, {n.blogTitle}{/if}{#if n.failCount > 0}<em> 확인 실패 {n.failCount}회</em>{/if}</span>
             <span class="last">
               {formatLastComment(n.lastCommentAt)}{#if n.pendingCount > 0}, 들를 글 {n.pendingCount}편{/if}
@@ -212,6 +212,16 @@
   .nm {
     font-weight: 600;
     display: block;
+  }
+  .visit {
+    margin-left: 6px;
+    padding: 0 5px;
+    font-size: 11px;
+    color: var(--margin);
+    border: 1px solid var(--margin);
+    border-radius: 3px;
+    line-height: 16px;
+    display: inline-block;
   }
   .id,
   .last {

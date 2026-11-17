@@ -11,6 +11,14 @@
     return p.status === 'new' ? 'none' : 'read'
   }
 
+  // 답방할 집의 처리 전 글을 맨 위로
+  const rows = $derived.by(() => {
+    const first = appState.returnVisitIds
+    if (first.size === 0) return appState.posts
+    const pending = (p: Post): boolean => p.status === 'new' || p.status === 'read'
+    return [...appState.posts].sort((a, b) => Number(pending(b) && first.has(b.blogId)) - Number(pending(a) && first.has(a.blogId)))
+  })
+
   /** 새 글이 있는데 오래 못 간 이웃이면 "34일 만" 표시 */
   function lateLabel(p: Post): string | null {
     if (p.status !== 'new' && p.status !== 'read') return null
@@ -36,7 +44,7 @@
       <tr><th>이웃과 새 글</th><th>읽음</th><th>공감</th><th>댓글</th></tr>
     </thead>
     <tbody>
-      {#each appState.posts as p (p.id)}
+      {#each rows as p (p.id)}
         {@const late = lateLabel(p)}
         <tr
           class:current={p.id === appState.selectedPostId}
@@ -44,7 +52,7 @@
         >
           <td class="who">
             <button type="button" class="row-btn" onclick={() => appState.openPost(p.id)}>
-              <span class="nm">{p.neighborName}{#if late}<span class="late">{late}</span>{/if}</span>
+              <span class="nm">{p.neighborName}{#if appState.returnVisitIds.has(p.blogId)}<span class="visit" title="내 글에 댓글을 달아 준 이웃이에요">답방</span>{/if}{#if late}<span class="late">{late}</span>{/if}</span>
               <span class="pt">{p.title}</span>
               <span class="tm">{formatPostTime(p.publishedAt)}</span>
             </button>
@@ -59,6 +67,18 @@
 {/if}
 
 <style>
+  .visit {
+    margin-left: 6px;
+    padding: 0 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--margin);
+    border: 1px solid var(--margin);
+    border-radius: 3px;
+    transform: rotate(-3deg);
+    display: inline-block;
+    line-height: 16px;
+  }
   table {
     width: 100%;
     border-collapse: collapse;

@@ -6,10 +6,22 @@
  *  - 공감/댓글 "등록" 버튼을 프로그램이 누르지 않는다. click(), submit(), 키 입력 흉내 금지.
  *  - 입력칸 채우기까지만 한다.
  *  - 등록·공감 클릭은 capture 리스너로 감지만 하고 기본 동작을 막지 않는다.
- *  - 예외: 사용자가 "채우기"를 눌렀을 때, 접힌 댓글 영역을 펼치는 토글(#Comi{logNo})만 누를 수 있다.
+ *  - 예외로 누를 수 있는 버튼은 둘뿐이고, 사용자가 앱의 버튼을 눌렀을 때만 누른다.
+ *    · 접힌 댓글 영역을 펼치는 토글(#Comi{logNo}): "채우기" 또는 "답방 갈 곳 찾아보기"를 눌렀을 때
+ *    · 댓글의 "답글" 버튼(답글 입력칸 열기): 그 댓글의 답글 초안에서 "채우기"를 눌렀을 때
  */
 import { ipcRenderer } from 'electron'
-import { NAVER_FRAME, type BuddyScanResult, type FillRequest, type FillResult } from '@shared/naver-frame'
+import {
+  NAVER_FRAME,
+  type BuddyScanResult,
+  type CommentsReport,
+  type FillRequest,
+  type FillResult,
+  type ReplyFillRequest,
+  type ScanCommentsRequest
+} from '@shared/naver-frame'
+import { blogHomeId } from '@shared/buddy'
+import { parseCommentInfo, toIso, type VisitorComment } from '@shared/visitors'
 import type { PostContent } from '@shared/prompt'
 import { SEL, first } from './naver-selectors'
 
@@ -85,7 +97,25 @@ function findInput(): HTMLElement | null {
   return document.querySelector<HTMLElement>(`${SEL.commentWrite} ${SEL.commentInput}`) ?? document.querySelector<HTMLElement>(SEL.commentInput)
 }
 
-/** 입력칸에 글을 넣는다. 등록 버튼은 건드리지 않는다. */
+/** 입력칸에 글을 넣는다 (입력칸 안의 편집만. 등록 버튼은 건드리지 않는다) */
+function putText(input: HTMLElement, text: string): FillResult['outcome'] {
+  input.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  input.focus()
+  const selection = window.getSelection()
+  const range = document.createRange()
+  range.selectNodeContents(input)
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+  const ok = document.execCommand('insertText', false, text)
+  if (!ok || norm(input.innerText) !== norm(text)) {
+    input.textContent = text
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }))
+  }
+  // 네이버가 입력칸을 바꿔 끼웠으면 채운 것으로 치지 않는다
+  return input.isConnected && norm(input.innerText) === norm(text) ? 'filled' : 'no-input'
+}
+
+/** 댓글 입력칸에 글을 넣는다. 등록 버튼은 건드리지 않는다. */
 async function fill(text: string): Promise<FillResult['outcome']> {
   let input = findInput()
   if (!input) {
@@ -101,22 +131,88 @@ async function fill(text: string): Promise<FillResult['outcome']> {
     if (!input) return document.querySelector(SEL.commentLoginGuide) ? 'login' : 'no-input'
   }
   if (document.querySelector(SEL.commentLoggedOut)) return 'login'
+  return putText(input, text)
+}
 
-  input.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  input.focus()
-  const selection = window.getSelection()
-  const range = document.createRange()
-  range.selectNodeContents(input)
-  selection?.removeAllRanges()
-  selection?.addRange(range)
-  // insertText는 입력칸 안에서만 일어나는 편집이다 (등록과 무관)
-  const ok = document.execCommand('insertText', false, text)
-  if (!ok || norm(input.innerText) !== norm(text)) {
-    input.textContent = text
-    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }))
+/** 내 글의 댓글에 답글 초안을 넣는다. 답글 입력칸이 닫혀 있으면 그 댓글의 "답글" 버튼만 누른다 (허용 버튼). */
+async function fillReply(commentNo: string, text: string): Promise<FillResult['outcome']> {
+  const find = (): HTMLElement | null => document.querySelector<HTMLElement>(SEL.replyInput(commentNo))
+  let input = find()
+  if (!input) {
+    const btn = document.querySelector<HTMLElement>(SEL.replyButton(commentNo))
+    if (!btn) return 'no-reply'
+    btn.click()
+    input = await waitFor(find, 6000)
+    if (!input) return 'no-reply'
   }
-  // 네이버가 입력칸을 바꿔 끼웠으면 채운 것으로 치지 않는다
-  return input.isConnected && norm(input.innerText) === norm(text) ? 'filled' : 'no-input'
+  if (input.closest(SEL.commentLoggedOut)) return 'login'
+  return putText(input, text)
+}
+
+/** 지금 화면에 보이는 원댓글을 읽는다 (내 댓글, 지운 댓글, 답글은 뺀다) */
+function readComments(): VisitorComment[] {
+  const out: VisitorComment[] = []
+  for (const li of document.querySelectorAll<HTMLElement>(SEL.commentItem)) {
+    const info = parseCommentInfo(li.getAttribute('data-info'))
+    if (!info || info.mine || info.deleted || info.replyLevel > 1) continue
+    const href = li.querySelector<HTMLAnchorElement>(SEL.commentProfile)?.getAttribute('href') ?? ''
+    const visitor = blogHomeId(href)
+    const at = toIso(info.regTime)
+    if (!visitor || !at) continue
+    out.push({
+      commentNo: info.commentNo,
+      logNo,
+      blogId: visitor,
+      nick: norm(li.querySelector<HTMLElement>(SEL.commentNick)?.innerText ?? '').slice(0, 40),
+      at,
+      text: norm(li.querySelector<HTMLElement>(SEL.commentText)?.innerText ?? '').slice(0, 500)
+    })
+  }
+  return out
+}
+
+function postTitle(): string {
+  return norm(first(SEL.postTitle)?.innerText ?? '').slice(0, 200)
+}
+
+function report(requestId: string | null, state: CommentsReport['state']): void {
+  const msg: CommentsReport = { requestId, logNo, title: postTitle(), state, comments: state === 'comments' ? readComments() : [] }
+  ipcRenderer.send(NAVER_FRAME.comments, msg)
+}
+
+/** "답방 갈 곳 찾아보기": 댓글을 읽어 보낸다. open이면 접힌 댓글 영역의 토글만 누른다 (허용 버튼) */
+async function scanComments(req: ScanCommentsRequest): Promise<void> {
+  if (!document.querySelector(SEL.commentList)) {
+    const toggle = document.querySelector<HTMLElement>(SEL.commentToggle(logNo))
+    if (!toggle) return report(req.requestId, document.querySelector(SEL.cbox) ? 'comments' : 'none')
+    if (!req.open) return report(req.requestId, 'closed')
+    toggle.click()
+    if (!(await waitFor(() => document.querySelector(SEL.commentList), 8000))) return report(req.requestId, 'none')
+    await sleep(500)
+  }
+  report(req.requestId, 'comments')
+}
+
+/** 내 글: 사용자가 댓글 영역을 펼치거나 목록이 바뀌면 다시 읽어 보낸다 (누르는 것 없음) */
+let watching = false
+function watchComments(): void {
+  if (watching) return
+  watching = true
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let last = ''
+  const check = (): void => {
+    if (!document.querySelector(SEL.commentList)) return
+    const sig = [...document.querySelectorAll(SEL.commentItem)].map((li) => li.getAttribute('data-info') ?? '').join('|')
+    if (sig === last) return
+    last = sig
+    report(null, 'comments')
+  }
+  new MutationObserver(() => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(check, 700)
+  }).observe(document.body, { childList: true, subtree: true })
+  check()
+  if (!document.querySelector(SEL.commentList)) report(null, document.querySelector(SEL.commentToggle(logNo)) ? 'closed' : 'none')
 }
 
 function countMatches(text: string): number {
@@ -169,6 +265,25 @@ if (isPostView && blogId && logNo) {
     void fill(req.text)
       .catch(() => 'no-input' as const)
       .then((outcome) => ipcRenderer.send(NAVER_FRAME.fillResult, { requestId: req.requestId, outcome } satisfies FillResult))
+  })
+
+  ipcRenderer.on(NAVER_FRAME.fillReply, (_e, req: ReplyFillRequest) => {
+    if (req.logNo !== logNo) return
+    void fillReply(req.commentNo, req.text)
+      .catch(() => 'no-reply' as const)
+      .then((outcome) => ipcRenderer.send(NAVER_FRAME.fillResult, { requestId: req.requestId, outcome } satisfies FillResult))
+  })
+
+  // main은 글이 뜰 때까지 같은 요청을 몇 번 보낸다. 한 번만 답한다.
+  const answered = new Set<string>()
+  ipcRenderer.on(NAVER_FRAME.scanComments, (_e, req: ScanCommentsRequest) => {
+    if (req.logNo !== logNo || answered.has(req.requestId)) return
+    answered.add(req.requestId)
+    void scanComments(req).catch(() => report(req.requestId, 'none'))
+  })
+
+  ipcRenderer.on(NAVER_FRAME.watchComments, (_e, req: { logNo: string }) => {
+    if (req.logNo === logNo) watchComments()
   })
 
   window.addEventListener('DOMContentLoaded', () => {

@@ -8,6 +8,7 @@
   import WebPane from './components/WebPane.svelte'
   import Mark from './components/Mark.svelte'
   import { appState, type LeftTab } from './lib/app-state.svelte'
+  import ReturnVisits from './components/ReturnVisits.svelte'
 
 
   void appState.init()
@@ -66,6 +67,7 @@
 
   const tabs: { id: LeftTab; label: () => string }[] = [
     { id: 'today', label: () => '오늘 새 글' },
+    { id: 'visits', label: () => (appState.returnVisits.length > 0 ? `답방 ${appState.returnVisits.length}` : '답방') },
     { id: 'neighbors', label: () => `이웃 명단 ${appState.neighbors.length}` },
     { id: 'quiet', label: () => '오래 못 간 집' }
   ]
@@ -94,6 +96,8 @@
     <div class="scroll">
       {#if appState.leftTab === 'today'}
         <Roll />
+      {:else if appState.leftTab === 'visits'}
+        <ReturnVisits />
       {:else if appState.leftTab === 'neighbors'}
         <NeighborBook />
       {:else}

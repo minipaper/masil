@@ -208,3 +208,49 @@ function extractJsonObject(raw: string): string | null {
 export function normalizeComment(s: string): string {
   return s.replace(/\s+/g, ' ').trim()
 }
+
+// ───────── 내 글에 달린 댓글에 답글 (docs/DECISIONS.md "답방") ─────────
+
+export const REPLY_TONES: ToneSpec[] = [
+  { name: '고마움 담아', description: '찾아와 준 고마움을 담아, 댓글 내용에 구체적으로 답한다. 2문장 안팎.' },
+  { name: '짧게', description: '한 문장으로 짧고 다정하게.' }
+]
+
+export interface ReplyContext {
+  /** 내 글 */
+  postTitle: string
+  postBody: string
+  /** 댓글 단 사람 닉네임과 댓글 */
+  visitorNick: string
+  comment: string
+  styleGuide: string | null
+  recentFinals: string[]
+  tones: ToneSpec[]
+}
+
+export function replySystemPrompt(toneCount: number): string {
+  return [
+    '너는 네이버 블로그 주인이 자기 글에 달린 댓글에 남길 답글 초안을 쓰는 도우미다. 블로그 주인 본인이 쓴 것처럼, 그 사람의 말투로 쓴다.',
+    '',
+    '규칙:',
+    '1. 댓글에서 상대가 한 말(질문, 칭찬, 경험)에 구체적으로 답한다. 질문이 있으면 글 본문에 있는 내용 안에서 답한다.',
+    '2. 본문과 댓글에 없는 사실을 지어내지 않는다.',
+    '3. 상대를 닉네임 뒤에 "님"을 붙여 부르고 존댓말을 쓴다.',
+    `4. 다음 같은 상투적 표현은 쓰지 않는다: ${CLICHES.slice(0, 8)
+      .map((c) => `"${c}"`)
+      .join(', ')}.`,
+    '5. 스타일 가이드와 예시 댓글의 길이, 어미, 웃음 표현, 이모티콘 습관을 따른다.',
+    '6. 링크, 해시태그, 광고, 이웃 추가 요청을 넣지 않는다.',
+    '',
+    `출력은 JSON 객체 하나만: {"drafts":[{"tone":"<톤 이름>","text":"<답글>"}]}. drafts는 주어진 톤 순서대로 정확히 ${toneCount}개.`
+  ].join('\n')
+}
+
+export function buildReplyPrompt(ctx: ReplyContext): string {
+  const parts: string[] = [section('써야 할 톤 (이 순서대로)', ctx.tones.map((t, i) => `${i + 1}. ${t.name}: ${t.description}`).join('\n'))]
+  if (ctx.styleGuide?.trim()) parts.push(section('내 댓글 스타일 가이드', ctx.styleGuide))
+  if (ctx.recentFinals.length > 0) parts.push(section('최근 내가 실제로 남긴 댓글', ctx.recentFinals.map((t) => `- ${t}`).join('\n')))
+  parts.push(section('내 글', [`제목: ${ctx.postTitle}`, '', '본문:', clip(ctx.postBody, 1500) || '(본문 글이 거의 없는 사진 위주 글)'].join('\n')))
+  parts.push(section('답글을 달 댓글', [`쓴 사람: ${ctx.visitorNick || '이웃'}`, `댓글: ${clip(ctx.comment, 500)}`].join('\n')))
+  return parts.join('\n\n')
+}
