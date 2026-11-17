@@ -7,6 +7,7 @@ import type {
   CheckStatus,
   CommentRecord,
   CurrentPost,
+  UpdateStatus,
   DraftsState,
   NaverViewState,
   Neighbor,
@@ -96,6 +97,11 @@ export interface MasilApi {
     export(): Promise<{ ok: boolean; message: string }>
     /** 성공하면 앱이 다시 시작된다 */
     import(): Promise<{ ok: boolean; message: string }>
+  }
+  app: {
+    info(): Promise<{ version: string; update: UpdateStatus }>
+    checkUpdate(): Promise<UpdateStatus>
+    onUpdate(cb: (s: UpdateStatus) => void): Unsubscribe
   }
   onDataChanged(cb: () => void): Unsubscribe
   onSelectPost(cb: (postId: number) => void): Unsubscribe

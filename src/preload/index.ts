@@ -78,6 +78,11 @@ const api: MasilApi = {
     export: () => ipcRenderer.invoke(IPC.dataExport),
     import: () => ipcRenderer.invoke(IPC.dataImport)
   },
+  app: {
+    info: () => ipcRenderer.invoke(IPC.appInfo),
+    checkUpdate: () => ipcRenderer.invoke(IPC.appCheckUpdate),
+    onUpdate: (cb) => on(IPC.evUpdate, cb)
+  },
   onDataChanged: (cb) => on(IPC.evDataChanged, cb),
   onSelectPost: (cb) => on(IPC.evSelectPost, cb)
 }

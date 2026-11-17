@@ -17,6 +17,7 @@ import * as repo from './repo'
 import { RssChecker } from './rss-checker'
 import { getSettings, updateSettings } from './settings'
 import { StyleService } from './style'
+import { Updater } from './updater'
 import { createTray, setTrayPending } from './tray'
 
 const isMac = process.platform === 'darwin'
@@ -28,6 +29,7 @@ let naverView: NaverView | null = null
 let postSession: PostSession | null = null
 let tray: Tray | null = null
 let checker: RssChecker | null = null
+let updater: Updater | null = null
 let quitting = false
 /** "내 블로그 찾기"를 누른 뒤 블로그 홈 주소에 도착하기를 기다리는 중 (기한) */
 let findingMyBlogUntil = 0
@@ -199,6 +201,14 @@ if (!app.requestSingleInstanceLock()) {
       onNewPosts: notifyNewPosts
     })
 
+    updater = new Updater(
+      () => mainWindow,
+      () => {
+        quitting = true // 트레이로 숨기지 않고 실제로 종료되게
+      },
+      (s) => send(IPC.evUpdate, s)
+    )
+
     registerIpc({
       db,
       checker,
@@ -213,7 +223,8 @@ if (!app.requestSingleInstanceLock()) {
       style,
       importer,
       window: () => mainWindow,
-      findMyBlog
+      findMyBlog,
+      updater
     })
 
     tray = createTray({
@@ -228,6 +239,7 @@ if (!app.requestSingleInstanceLock()) {
     applyLoginItem(getSettings(db))
 
     checker.start()
+    updater.start()
 
     app.on('activate', showWindow)
   })
@@ -235,6 +247,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', () => {
     quitting = true
     checker?.stop()
+    updater?.stop()
   })
 
   app.on('will-quit', () => closeDb())

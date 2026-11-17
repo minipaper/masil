@@ -177,3 +177,13 @@ export interface ImportProgress {
   /** 블로그를 찾지 못했거나 연결에 실패한 ID */
   failed: string[]
 }
+
+export type UpdateStatus =
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'none' }
+  | { kind: 'downloading'; version: string }
+  | { kind: 'ready'; version: string }
+  | { kind: 'error'; message: string }
+  /** 개발 실행: 업데이트를 확인하지 않는다 */
+  | { kind: 'dev' }

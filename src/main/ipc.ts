@@ -3,7 +3,9 @@ import { parseBlogId } from '@shared/blog-id'
 import { IPC, type NaverNav } from '@shared/ipc'
 import type { BrowserWindow } from 'electron'
 import type { AddNeighborResult, NeighborPatch, Rect, Settings } from '@shared/types'
+import { app } from 'electron'
 import { exportData, importData } from './backup'
+import type { Updater } from './updater'
 import { buddyPageUrl, type NeighborImport } from './neighbor-import'
 import type { StyleService } from './style'
 import type { DB } from './db'
@@ -28,6 +30,7 @@ interface Ctx {
   window: () => BrowserWindow | null
   /** 웹뷰에서 "내 블로그"를 열어 ID를 알아낸다 */
   findMyBlog: () => void
+  updater: Updater
 }
 
 const REASON_TEXT: Record<'duplicate' | 'not-found' | 'network' | 'self', string> = {
@@ -141,4 +144,8 @@ export function registerIpc(ctx: Ctx): void {
   // ── 백업 ──
   ipcMain.handle(IPC.dataExport, () => exportData(db, ctx.window()))
   ipcMain.handle(IPC.dataImport, () => importData(db, ctx.window()))
+
+  // ── 버전, 업데이트 ──
+  ipcMain.handle(IPC.appInfo, () => ({ version: app.getVersion(), update: ctx.updater.getStatus() }))
+  ipcMain.handle(IPC.appCheckUpdate, () => ctx.updater.check())
 }

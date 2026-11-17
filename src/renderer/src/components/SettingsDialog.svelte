@@ -1,6 +1,6 @@
 <script lang="ts">
   import { MIN_CHECK_INTERVAL_MINUTES } from '@shared/policy'
-  import type { Settings } from '@shared/types'
+  import type { Settings, UpdateStatus } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
   import StyleGuideSection from './StyleGuideSection.svelte'
 
@@ -35,6 +35,27 @@
     if (id && !form.myBlogId) form.myBlogId = id
   })
   let dataNote = $state<{ ok: boolean; text: string } | null>(null)
+  let version = $state('')
+  let update = $state<UpdateStatus>({ kind: 'idle' })
+  $effect(() => {
+    void api.app.info().then((i) => {
+      version = i.version
+      update = i.update
+    })
+    return api.app.onUpdate((s) => (update = s))
+  })
+  const UPDATE_TEXT: Record<UpdateStatus['kind'], string> = {
+    idle: '',
+    checking: '확인하는 중이에요.',
+    none: '최신 버전이에요.',
+    downloading: '새 버전을 받는 중이에요.',
+    ready: '새 버전을 받아 두었어요. 마실을 종료하면 설치돼요.',
+    error: '업데이트를 확인하지 못했어요.',
+    dev: '개발 실행에서는 업데이트를 확인하지 않아요.'
+  }
+  const updateText = $derived(
+    update.kind === 'downloading' || update.kind === 'ready' ? `${update.version}: ${UPDATE_TEXT[update.kind]}` : UPDATE_TEXT[update.kind]
+  )
   let apiKey = $state('')
   let hasKey = $state(initial.hasApiKey)
   let saving = $state(false)
@@ -249,6 +270,20 @@
           <span>Windows를 켜면 마실을 트레이에 띄워 두기</span>
         </label>
       </section>
+
+      <section>
+        <h3>버전</h3>
+        <div class="row-start">
+          <span class="ver">마실 {version}</span>
+          <button
+            type="button"
+            class="ghost"
+            disabled={update.kind === 'checking' || update.kind === 'downloading' || update.kind === 'dev'}
+            onclick={async () => (update = await api.app.checkUpdate())}>업데이트 확인</button
+          >
+          {#if updateText}<span class="data-note" class:error={update.kind === 'error'}>{updateText}</span>{/if}
+        </div>
+      </section>
     </div>
 
     <footer>
@@ -394,6 +429,10 @@
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+  .ver {
+    font-size: 13px;
+    margin-right: 4px;
   }
   .data-note {
     font-size: 12.5px;

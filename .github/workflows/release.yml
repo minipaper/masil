@@ -1,0 +1,27 @@
+name: release
+
+# v* 태그를 push하면 Windows 설치 파일을 만들어 GitHub Releases에 올린다.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      # postinstall이 better-sqlite3를 Electron용으로 다시 빌드한다
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: 설치 파일 빌드와 업로드
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

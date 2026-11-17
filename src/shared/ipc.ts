@@ -37,6 +37,8 @@ export const IPC = {
   findMyBlog: 'naver:find-my-blog',
   dataExport: 'data:export',
   dataImport: 'data:import',
+  appInfo: 'app:info',
+  appCheckUpdate: 'app:check-update',
 
   // main → renderer (send)
   evCheckStatus: 'ev:check-status',
@@ -51,7 +53,8 @@ export const IPC = {
   evStyle: 'ev:style',
   evImportProgress: 'ev:import-progress',
   /** main에서 설정이 바뀜 (내 블로그 찾기 등) */
-  evSettings: 'ev:settings'
+  evSettings: 'ev:settings',
+  evUpdate: 'ev:update'
 } as const
 
 export type NaverNav = 'back' | 'forward' | 'reload' | 'login' | 'home'

@@ -124,6 +124,9 @@
 - Windows .exe(NSIS)만 배포한다. 코드 서명은 하지 않으므로 처음 설치할 때 SmartScreen 경고가 뜬다.
 - `v*` 태그를 push하면 GitHub Actions의 Windows 러너가 빌드해서 GitHub Releases에 올린다. 버전은 0.1.0부터 시작한다.
 - electron-updater: 앱을 켤 때와 6시간마다 확인하고, 백그라운드에서 받은 뒤 다시 시작할지 묻는다. 강제하지 않으며, 미루면 종료할 때 설치된다.
+- 빌드 설정은 `electron-builder.yml`에 있다. 표시 이름은 "마실"이고, 실행 파일과 설치 파일 이름은 영문(`Masil.exe`, `Masil-Setup-x.y.z.exe`)이다. 업데이트 메타데이터(latest.yml)가 파일 이름을 그대로 쓰기 때문이다.
+- 릴리스는 초안 없이 바로 공개한다(`releaseType: release`). electron-updater는 공개 릴리스만 보기 때문이다.
+- main에 push하면 `ci` 워크플로가 타입 검사와 테스트를 돌린다.
 
 ## 마일스톤
 

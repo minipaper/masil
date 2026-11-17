@@ -26,7 +26,7 @@
 
 ## 설치 (Windows)
 
-[Releases](https://github.com/minipaper/masil/releases)에서 최신 `마실-Setup-x.y.z.exe`를 받아 실행하세요. 코드 서명을 하지 않은 앱이라 처음 실행할 때 "Windows의 PC 보호" 창이 뜰 수 있어요. 그때는 **추가 정보 → 실행**을 누르면 돼요. 이후 업데이트는 앱이 알아서 받아요.
+[Releases](https://github.com/minipaper/masil/releases)에서 최신 `Masil-Setup-x.y.z.exe`를 받아 실행하세요. 코드 서명을 하지 않은 앱이라 처음 실행할 때 "Windows의 PC 보호" 창이 뜰 수 있어요. 그때는 **추가 정보 → 실행**을 누르면 돼요. 이후 업데이트는 앱이 켜질 때와 6시간마다 확인해서 받아 두고, 다시 시작할지 물어봐요.
 
 ## AI 설정
 
