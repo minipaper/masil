@@ -100,10 +100,14 @@
     notice = null
     try {
       if (await persist()) appState.openSettings(false)
+    } catch (err) {
+      notice = { ok: false, text: `설정을 저장하지 못했어요. ${errorText(err)}` }
     } finally {
       saving = false
     }
   }
+
+  const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err)).replace(/^Error invoking remote method '[^']+': /, '').slice(0, 200)
 
   /** 지금 입력한 설정을 저장한 뒤 테스트 문장을 보낸다 */
   async function test(): Promise<void> {
@@ -113,6 +117,8 @@
     try {
       if (!(await persist())) return
       testResult = await api.ai.test(testPrompt)
+    } catch (err) {
+      testResult = { ok: false, message: '보내기 전에 문제가 생겼어요.', reply: '', ms: 0, detail: errorText(err) }
     } finally {
       testing = false
     }
@@ -496,6 +502,7 @@
     font-size: 12px;
     color: var(--graphite-soft);
     word-break: break-all;
+    white-space: pre-line;
   }
   .ver {
     font-size: 13px;

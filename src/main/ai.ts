@@ -113,7 +113,9 @@ export async function testConnection(ai: AiSettings, apiKey: string | null, prom
     if (!reply) return { ok: false, message: '연결은 됐지만 모델이 빈 답을 보냈어요. 모델 이름을 확인해 주세요.', reply: '', ms, detail: null }
     return { ok: true, message: `연결됐어요. ${ai.model} 모델이 ${(ms / 1000).toFixed(1)}초 만에 답했어요.`, reply: reply.slice(0, 400), ms, detail: null }
   } catch (e) {
-    return { ok: false, message: describeAiError(e), reply: '', ms: Date.now() - started, detail: serverDetail(e) }
+    const sent = ai.baseUrl ? `보낸 주소: ${ai.baseUrl} (모델 ${ai.model || '없음'})` : null
+    const detail = [sent, serverDetail(e)].filter(Boolean).join('\n') || null
+    return { ok: false, message: describeAiError(e), reply: '', ms: Date.now() - started, detail }
   }
 }
 

@@ -158,7 +158,8 @@ class AppState {
   }
 
   async saveSettings(patch: Partial<Settings>): Promise<void> {
-    this.settings = await api.settings.set(patch)
+    // 반응형 Proxy(예: 설정 창의 톤 목록)는 IPC로 복제할 수 없어서 일반 객체로 바꿔 보낸다
+    this.settings = await api.settings.set($state.snapshot(patch) as Partial<Settings>)
   }
 
   async openPost(id: number): Promise<void> {
