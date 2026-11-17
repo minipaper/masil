@@ -2,6 +2,9 @@ import type { NaverNav } from '../shared/ipc'
 import type {
   AddNeighborResult,
   CheckStatus,
+  CommentRecord,
+  CurrentPost,
+  DraftsState,
   NaverViewState,
   Neighbor,
   NeighborPatch,
@@ -43,6 +46,24 @@ export interface MasilApi {
     nav(action: NaverNav): void
     state(): Promise<NaverViewState | null>
     onState(cb: (s: NaverViewState) => void): Unsubscribe
+  }
+  drafts: {
+    current(): Promise<CurrentPost | null>
+    state(): Promise<DraftsState | null>
+    generate(): Promise<void>
+    /** 입력칸에 채우기만 한다. 등록은 사용자가 직접 누른다. */
+    fill(text: string, tone: string): Promise<{ ok: boolean; message: string }>
+    onCurrent(cb: (p: CurrentPost | null) => void): Unsubscribe
+    onState(cb: (s: DraftsState) => void): Unsubscribe
+  }
+  comments: {
+    forBlog(blogId: string): Promise<CommentRecord[]>
+    onChanged(cb: (blogId: string) => void): Unsubscribe
+  }
+  ai: {
+    /** null이면 키 삭제 */
+    setKey(key: string | null): Promise<{ ok: boolean; message?: string; settings: Settings }>
+    test(): Promise<{ ok: boolean; message: string }>
   }
   onDataChanged(cb: () => void): Unsubscribe
   onSelectPost(cb: (postId: number) => void): Unsubscribe

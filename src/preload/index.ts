@@ -39,6 +39,22 @@ const api: MasilApi = {
     state: () => ipcRenderer.invoke(IPC.naverState),
     onState: (cb) => on(IPC.evNaverState, cb)
   },
+  drafts: {
+    current: () => ipcRenderer.invoke(IPC.currentPost),
+    state: () => ipcRenderer.invoke(IPC.draftsState),
+    generate: () => ipcRenderer.invoke(IPC.draftsGenerate),
+    fill: (text, tone) => ipcRenderer.invoke(IPC.draftsFill, text, tone),
+    onCurrent: (cb) => on(IPC.evCurrentPost, cb),
+    onState: (cb) => on(IPC.evDrafts, cb)
+  },
+  comments: {
+    forBlog: (blogId) => ipcRenderer.invoke(IPC.commentsForBlog, blogId),
+    onChanged: (cb) => on(IPC.evCommentsChanged, cb)
+  },
+  ai: {
+    setKey: (key) => ipcRenderer.invoke(IPC.aiSetKey, key),
+    test: () => ipcRenderer.invoke(IPC.aiTest)
+  },
   onDataChanged: (cb) => on(IPC.evDataChanged, cb),
   onSelectPost: (cb) => on(IPC.evSelectPost, cb)
 }

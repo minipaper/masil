@@ -3,15 +3,18 @@ import { parseBlogId } from '@shared/blog-id'
 import { IPC, type NaverNav } from '@shared/ipc'
 import type { AddNeighborResult, NeighborPatch, Rect, Settings } from '@shared/types'
 import type { DB } from './db'
+import { describeAiError, testConnection } from './ai'
 import type { NaverView } from './naver-view'
+import type { PostSession } from './post-session'
 import * as repo from './repo'
 import { registerNeighbor, type RssChecker } from './rss-checker'
-import { getSettings, updateSettings } from './settings'
+import { getApiKey, getSettings, setApiKey, updateSettings } from './settings'
 
 interface Ctx {
   db: DB
   checker: RssChecker
   naver: () => NaverView | null
+  postSession: () => PostSession | null
   /** 이웃·글 목록이 바뀌었음을 renderer에 알린다 */
   dataChanged: () => void
   openPost: (postId: number) => void
@@ -79,4 +82,26 @@ export function registerIpc(ctx: Ctx): void {
   ipcMain.on(IPC.naverSetHidden, (_e, hidden: boolean) => ctx.naver()?.setHidden(Boolean(hidden)))
   ipcMain.on(IPC.naverNav, (_e, action: NaverNav) => ctx.naver()?.nav(action))
   ipcMain.handle(IPC.naverState, () => ctx.naver()?.state() ?? null)
+
+  // ── 초안과 댓글 ──
+  ipcMain.handle(IPC.currentPost, () => ctx.postSession()?.currentPost() ?? null)
+  ipcMain.handle(IPC.draftsState, () => ctx.postSession()?.draftsState() ?? null)
+  ipcMain.handle(IPC.draftsGenerate, () => ctx.postSession()?.generate())
+  ipcMain.handle(IPC.draftsFill, (_e, text: string, tone: string) =>
+    ctx.postSession()?.fill(String(text ?? ''), String(tone ?? '')) ?? { ok: false, message: '열린 글이 없어요.' }
+  )
+  ipcMain.handle(IPC.commentsForBlog, (_e, blogId: string) => repo.listCommentsForBlog(db, String(blogId)))
+
+  // ── AI 설정: 키는 저장만 하고 renderer로 돌려주지 않는다 ──
+  ipcMain.handle(IPC.aiSetKey, (_e, key: string | null) => {
+    try {
+      setApiKey(db, key)
+      const s = getSettings(db)
+      ctx.onSettingsChanged(s)
+      return { ok: true, settings: s }
+    } catch (e) {
+      return { ok: false, message: describeAiError(e), settings: getSettings(db) }
+    }
+  })
+  ipcMain.handle(IPC.aiTest, () => testConnection(getSettings(db).ai, getApiKey(db)))
 }

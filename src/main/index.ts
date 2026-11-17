@@ -9,6 +9,7 @@ import { toChromeUserAgent } from '@shared/user-agent'
 import { closeDb, getDb } from './db'
 import { registerIpc } from './ipc'
 import { NaverView } from './naver-view'
+import { PostSession } from './post-session'
 import { resourcePath } from './paths'
 import * as repo from './repo'
 import { RssChecker } from './rss-checker'
@@ -21,6 +22,7 @@ const START_HIDDEN_FLAG = '--hidden'
 
 let mainWindow: BrowserWindow | null = null
 let naverView: NaverView | null = null
+let postSession: PostSession | null = null
 let tray: Tray | null = null
 let checker: RssChecker | null = null
 let quitting = false
@@ -110,6 +112,7 @@ function openPost(postId: number): void {
 /** 웹뷰에서 사용자가 직접 이웃 글로 이동해도 읽음으로 처리한다 */
 function onNaverNavigate(url: string): void {
   const ref = parsePostRef(url)
+  postSession?.onNavigate(ref)
   if (!ref) return
   const db = getDb()
   const post = repo.findPostByLogNo(db, ref.blogId, ref.logNo)
@@ -155,6 +158,12 @@ if (!app.requestSingleInstanceLock()) {
     const startHidden = process.argv.includes(START_HIDDEN_FLAG)
     mainWindow = createMainWindow(startHidden)
     naverView = new NaverView(mainWindow, (s) => send(IPC.evNaverState, s), onNaverNavigate)
+    postSession = new PostSession(db, () => naverView?.webContents ?? null, {
+      currentPost: (p) => send(IPC.evCurrentPost, p),
+      drafts: (s) => send(IPC.evDrafts, s),
+      commentsChanged: (blogId) => send(IPC.evCommentsChanged, blogId),
+      dataChanged
+    })
 
     checker = new RssChecker(db, {
       onStatus: (s) => send(IPC.evCheckStatus, s),
@@ -165,6 +174,7 @@ if (!app.requestSingleInstanceLock()) {
       db,
       checker,
       naver: () => naverView,
+      postSession: () => postSession,
       dataChanged,
       openPost,
       onSettingsChanged: (s) => {

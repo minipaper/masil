@@ -27,6 +27,7 @@
   <button class="tb" type="button" disabled={appState.check.running} onclick={() => window.masil.check.now()}>
     지금 확인
   </button>
+  <button class="tb" type="button" onclick={() => appState.openSettings(true)}>설정</button>
 </header>
 
 <style>

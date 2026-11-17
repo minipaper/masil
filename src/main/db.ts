@@ -46,16 +46,19 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX posts_status ON posts(status, published_at);
 
-  -- AI 초안 (M2). batch_id = 한 번 생성할 때 나온 초안 묶음
+  -- AI 초안. batch_id = 한 번 생성할 때 나온 초안 묶음.
+  -- 이웃이 아닌 글에서도 쓸 수 있도록 posts 행이 아니라 blog_id/log_no로 묶는다.
   CREATE TABLE drafts (
     id         INTEGER PRIMARY KEY,
-    post_id    INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    blog_id    TEXT NOT NULL,
+    log_no     TEXT NOT NULL,
     batch_id   TEXT NOT NULL,
     tone       TEXT NOT NULL,
     text       TEXT NOT NULL,
     model      TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
+  CREATE INDEX drafts_post ON drafts(blog_id, log_no, created_at);
 
   -- 내가 등록한 댓글 최종본 (M2). 이웃을 지웠다 다시 등록해도 기록이 이어지도록 blog_id로 묶는다.
   CREATE TABLE comments (

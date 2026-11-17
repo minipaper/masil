@@ -1,6 +1,6 @@
 import type { RssItem } from '@shared/rss'
 import { nextStatus, type PostEvent } from '@shared/post-state'
-import type { Closeness, Neighbor, NeighborPatch, Post, PostStatus, Speech } from '@shared/types'
+import type { Closeness, CommentRecord, DraftItem, Neighbor, NeighborPatch, Post, PostStatus, Speech } from '@shared/types'
 import type { DB } from './db'
 
 const now = (): string => new Date().toISOString()
@@ -280,4 +280,157 @@ export function writeSetting(db: DB, key: string, value: unknown): void {
     key,
     JSON.stringify(value)
   )
+}
+
+export function setPostLiked(db: DB, blogId: string, logNo: string, liked: boolean): boolean {
+  const info = db
+    .prepare(`UPDATE posts SET liked = ? WHERE log_no = ? AND neighbor_id = (SELECT id FROM neighbors WHERE blog_id = ?)`)
+    .run(liked ? 1 : 0, logNo, blogId)
+  return info.changes > 0
+}
+
+// ───────── 초안 ─────────
+
+export function saveDraftBatch(
+  db: DB,
+  blogId: string,
+  logNo: string,
+  model: string,
+  drafts: { tone: string; text: string }[]
+): DraftItem[] {
+  const batchId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  const t = now()
+  const insert = db.prepare(
+    `INSERT INTO drafts (blog_id, log_no, batch_id, tone, text, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  )
+  const items: DraftItem[] = []
+  db.transaction(() => {
+    for (const d of drafts) {
+      const info = insert.run(blogId, logNo, batchId, d.tone, d.text, model, t)
+      items.push({ id: Number(info.lastInsertRowid), tone: d.tone, text: d.text })
+    }
+  })()
+  return items
+}
+
+/** 그 글의 가장 최근 초안 묶음 */
+export function latestDrafts(db: DB, blogId: string, logNo: string): DraftItem[] {
+  const last = db
+    .prepare(`SELECT batch_id FROM drafts WHERE blog_id = ? AND log_no = ? ORDER BY id DESC LIMIT 1`)
+    .get(blogId, logNo) as { batch_id: string } | undefined
+  if (!last) return []
+  return db
+    .prepare(`SELECT id, tone, text FROM drafts WHERE batch_id = ? ORDER BY id ASC`)
+    .all(last.batch_id) as DraftItem[]
+}
+
+// ───────── 내가 등록한 댓글 ─────────
+
+interface CommentRow {
+  id: number
+  blog_id: string
+  log_no: string
+  post_title: string
+  text: string
+  draft_text: string | null
+  draft_tone: string | null
+  is_secret: number
+  status: CommentRecord['status']
+  clicked_at: string
+  confirmed_at: string | null
+}
+
+function toComment(r: CommentRow): CommentRecord {
+  return {
+    id: r.id,
+    blogId: r.blog_id,
+    logNo: r.log_no,
+    postTitle: r.post_title,
+    text: r.text,
+    draftText: r.draft_text,
+    draftTone: r.draft_tone,
+    isSecret: r.is_secret === 1,
+    status: r.status,
+    clickedAt: r.clicked_at,
+    confirmedAt: r.confirmed_at
+  }
+}
+
+/** 등록 클릭 순간의 입력칸 내용을 "최종본 후보"로 저장 */
+export function insertPendingComment(
+  db: DB,
+  c: { blogId: string; logNo: string; postTitle: string; text: string; secret: boolean; draft: { text: string; tone: string } | null }
+): number {
+  const info = db
+    .prepare(
+      `INSERT INTO comments (blog_id, log_no, post_title, text, draft_text, draft_tone, is_secret, status, clicked_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
+    )
+    .run(c.blogId, c.logNo, c.postTitle, c.text, c.draft?.text ?? null, c.draft?.tone ?? null, c.secret ? 1 : 0, now())
+  return Number(info.lastInsertRowid)
+}
+
+/** 댓글 목록에 나타났는지에 따라 확정. 같은 글의 같은 내용 중 가장 최근 pending 하나를 고친다. */
+export function resolvePendingComment(db: DB, blogId: string, logNo: string, text: string, confirmed: boolean): CommentRecord | null {
+  const row = db
+    .prepare(
+      `SELECT * FROM comments WHERE blog_id = ? AND log_no = ? AND text = ? AND status = 'pending' ORDER BY id DESC LIMIT 1`
+    )
+    .get(blogId, logNo, text) as CommentRow | undefined
+  if (!row) return null
+  db.prepare(`UPDATE comments SET status = ?, confirmed_at = ? WHERE id = ?`).run(
+    confirmed ? 'confirmed' : 'failed',
+    confirmed ? now() : null,
+    row.id
+  )
+  return toComment({ ...row, status: confirmed ? 'confirmed' : 'failed' })
+}
+
+export function listCommentsForBlog(db: DB, blogId: string, limit = 30): CommentRecord[] {
+  return (
+    db
+      .prepare(`SELECT * FROM comments WHERE blog_id = ? AND status != 'failed' ORDER BY clicked_at DESC LIMIT ?`)
+      .all(blogId, limit) as CommentRow[]
+  ).map(toComment)
+}
+
+/** 프롬프트 예시: 최근 확정된 최종본 (다른 이웃 포함) */
+export function recentFinals(db: DB, limit: number, excludeBlogId?: string): string[] {
+  if (limit <= 0) return []
+  return (
+    db
+      .prepare(
+        `SELECT text FROM comments WHERE status = 'confirmed' AND blog_id != ? ORDER BY clicked_at DESC LIMIT ?`
+      )
+      .all(excludeBlogId ?? '', limit) as { text: string }[]
+  ).map((r) => r.text)
+}
+
+/** 프롬프트 예시: 이 이웃에게 쓴 확정 댓글 */
+export function neighborFinals(db: DB, blogId: string, limit: number): { postTitle: string; text: string }[] {
+  if (limit <= 0) return []
+  return db
+    .prepare(
+      `SELECT post_title AS postTitle, text FROM comments WHERE status = 'confirmed' AND blog_id = ? ORDER BY clicked_at DESC LIMIT ?`
+    )
+    .all(blogId, limit) as { postTitle: string; text: string }[]
+}
+
+/** 프롬프트 예시: AI 초안 → 내가 고친 최종본 (실제로 고친 것만) */
+export function draftFinalPairs(db: DB, limit: number): { draft: string; final: string }[] {
+  if (limit <= 0) return []
+  return db
+    .prepare(
+      `SELECT draft_text AS draft, text AS final FROM comments
+       WHERE status = 'confirmed' AND draft_text IS NOT NULL AND draft_text != text
+       ORDER BY clicked_at DESC LIMIT ?`
+    )
+    .all(limit) as { draft: string; final: string }[]
+}
+
+export function activeStyleGuide(db: DB): string | null {
+  const row = db.prepare(`SELECT content FROM style_guides WHERE status = 'active' ORDER BY id DESC LIMIT 1`).get() as
+    | { content: string }
+    | undefined
+  return row?.content ?? null
 }

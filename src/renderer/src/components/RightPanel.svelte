@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { NeighborPatch } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
+  import Drafts from './Drafts.svelte'
+  import History from './History.svelte'
   import MemoEditor from './MemoEditor.svelte'
 
   let { oncollapse }: { oncollapse: () => void } = $props()
@@ -41,15 +43,14 @@
     <section id="sec-drafts">
       <div class="sh">
         <h2>댓글 초안</h2>
-        <button type="button" onclick={oncollapse} aria-label="오른쪽 패널 접기">접기</button>
+        <div class="sh-btns">
+          {#if appState.currentPost && !appState.drafts?.needsSetup}
+            <button type="button" disabled={appState.drafts?.status === 'loading'} onclick={() => window.masil.drafts.generate()}>다시 쓰기</button>
+          {/if}
+          <button type="button" onclick={oncollapse} aria-label="오른쪽 패널 접기">접기</button>
+        </div>
       </div>
-      <p class="note">
-        {#if appState.selectedPost}
-          AI 설정을 마치면 글을 열 때 초안 세 개를 여기에 써 둘게요.
-        {:else}
-          글을 열면 초안 세 개를 써 둘게요.
-        {/if}
-      </p>
+      <Drafts />
     </section>
 
     <section id="sec-memo" class="block">
@@ -72,8 +73,11 @@
     </section>
 
     <section id="sec-history" class="block">
-      <div class="sh"><h2>{neighbor ? `${neighbor.honorific || neighbor.nickname}께 남긴 댓글` : '지난 댓글'}</h2></div>
-      <p class="note">마실로 등록한 댓글이 여기에 쌓여요.</p>
+      <div class="sh">
+        <h2>{neighbor ? `${neighbor.honorific || neighbor.nickname}께 남긴 댓글` : '지난 댓글'}</h2>
+        {#if appState.history.length > 0}<small>{appState.history.length}개</small>{/if}
+      </div>
+      <History />
     </section>
   </div>
 </aside>
@@ -145,6 +149,17 @@
     padding: 1px 10px;
     border-radius: 3px;
     color: var(--graphite-soft);
+  }
+  .sh-btns {
+    display: flex;
+    gap: 4px;
+  }
+  .sh small {
+    font-size: 12px;
+    color: var(--graphite-soft);
+  }
+  .sh button:disabled {
+    opacity: 0.5;
   }
   .sh button:hover {
     border-color: var(--graphite);

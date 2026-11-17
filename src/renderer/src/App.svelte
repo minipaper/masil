@@ -2,6 +2,7 @@
   import { formatRollDate } from '@shared/format'
   import NeighborBook from './components/NeighborBook.svelte'
   import RightPanel from './components/RightPanel.svelte'
+  import SettingsDialog from './components/SettingsDialog.svelte'
   import Roll from './components/Roll.svelte'
   import TitleBar from './components/TitleBar.svelte'
   import WebPane from './components/WebPane.svelte'
@@ -149,6 +150,10 @@
     <RightPanel oncollapse={() => setCollapsed(true)} />
   {/if}
 </div>
+
+{#if appState.settingsOpen && appState.settings}
+  <SettingsDialog />
+{/if}
 
 <style>
   .app {

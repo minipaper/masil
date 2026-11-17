@@ -57,6 +57,24 @@ export interface QuietHours {
   end: string
 }
 
+export interface ToneSpec {
+  name: string
+  description: string
+}
+
+export interface AiSettings {
+  /** OpenAI 호환 API 주소 (예: https://api.openai.com/v1) */
+  baseUrl: string
+  model: string
+  /** 글이 열리면 초안 자동 생성 */
+  autoGenerate: boolean
+  /** 본문 이미지도 AI에 보내기 (비전 모델 전용, 최대 4장) */
+  sendImages: boolean
+  tones: ToneSpec[]
+  /** 프롬프트에 넣는 예시 개수 */
+  examples: { recent: number; neighbor: number; pairs: number }
+}
+
 export interface Settings {
   checkIntervalMinutes: number
   quietHours: QuietHours
@@ -64,6 +82,51 @@ export interface Settings {
   myBlogId: string | null
   paneWidths: { left: number; right: number }
   rightCollapsed: boolean
+  ai: AiSettings
+  /** API 키 저장 여부 (키 자체는 renderer로 보내지 않는다) */
+  hasApiKey: boolean
+}
+
+/** 지금 웹뷰에 열린 글 */
+export interface CurrentPost {
+  blogId: string
+  logNo: string
+  title: string
+  url: string
+  /** 출석부에 있는 글이면 그 id */
+  postId: number | null
+  neighborId: number | null
+  liked: boolean
+}
+
+export interface DraftItem {
+  id: number
+  tone: string
+  text: string
+}
+
+export interface DraftsState {
+  blogId: string
+  logNo: string
+  status: 'idle' | 'loading' | 'ready' | 'error'
+  drafts: DraftItem[]
+  error: string | null
+  /** 설정이 덜 되어 생성하지 못함 */
+  needsSetup: boolean
+}
+
+export interface CommentRecord {
+  id: number
+  blogId: string
+  logNo: string
+  postTitle: string
+  text: string
+  draftText: string | null
+  draftTone: string | null
+  isSecret: boolean
+  status: 'pending' | 'confirmed' | 'failed'
+  clickedAt: string
+  confirmedAt: string | null
 }
 
 export interface CheckStatus {

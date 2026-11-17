@@ -17,12 +17,22 @@ export const IPC = {
   naverSetHidden: 'naver:set-hidden',
   naverNav: 'naver:nav',
   naverState: 'naver:state',
+  currentPost: 'post:current',
+  draftsState: 'drafts:state',
+  draftsGenerate: 'drafts:generate',
+  draftsFill: 'drafts:fill',
+  commentsForBlog: 'comments:for-blog',
+  aiSetKey: 'ai:set-key',
+  aiTest: 'ai:test',
 
   // main → renderer (send)
   evCheckStatus: 'ev:check-status',
   evDataChanged: 'ev:data-changed',
   evNaverState: 'ev:naver-state',
-  evSelectPost: 'ev:select-post'
+  evSelectPost: 'ev:select-post',
+  evCurrentPost: 'ev:current-post',
+  evDrafts: 'ev:drafts',
+  evCommentsChanged: 'ev:comments-changed'
 } as const
 
 export type NaverNav = 'back' | 'forward' | 'reload' | 'login' | 'home'
