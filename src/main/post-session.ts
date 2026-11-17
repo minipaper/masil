@@ -239,11 +239,14 @@ export class PostSession {
     const frame = this.frame
     if (!frame || frame.isDestroyed()) return Promise.resolve(null)
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    // 웹뷰에 먼저 포커스를 준다. 포커스가 없으면 입력칸의 focus 이벤트가 사용자가 웹뷰를 누를 때까지 미뤄지고,
+    // 그때 네이버가 쓰기 상자를 새로 그리면서 채운 글이 상자 밖으로 밀려난다 (이슈 #1)
+    this.naver()?.focus()
     return new Promise<FillResult | null>((resolve) => {
       const timer = setTimeout(() => {
         this.pendingFills.delete(requestId)
         resolve(null)
-      }, 12_000)
+      }, 20_000)
       this.pendingFills.set(requestId, (r) => {
         clearTimeout(timer)
         this.pendingFills.delete(requestId)

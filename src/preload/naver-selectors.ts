@@ -39,6 +39,11 @@ export const SEL = {
   cbox: '.u_cbox',
   commentWrite: '.u_cbox_write_wrap, .u_cbox_write',
   commentInput: '.u_cbox_text[contenteditable]',
+  /** 댓글 쓰기 입력칸 (확인: 2026-11-17 이슈 #1, 로그인 상태). id가 "…__write_textarea"로 끝난다 */
+  commentMainInput: '[id$="__write_textarea"][contenteditable]',
+  /** 입력칸을 감싼 쓰기 상자. 네이버가 바꿔 끼운 옛 입력칸은 이 밖에 남는다 */
+  commentInbox: '.u_cbox_inbox',
+  replyArea: '.u_cbox_reply_area',
   /** 등록 버튼 (누르지 않는다. 사용자가 누르면 감지만) */
   commentSubmit: '.u_cbox_btn_upload',
   commentSecret: '.u_cbox_secret input[type=checkbox], .u_cbox_secret_check, .u_cbox_write input[type=checkbox]',

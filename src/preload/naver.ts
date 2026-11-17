@@ -23,6 +23,7 @@ import {
 import { blogHomeId } from '@shared/buddy'
 import { parseCommentInfo, toIso, type VisitorComment } from '@shared/visitors'
 import type { PostContent } from '@shared/prompt'
+import { putText } from './fill-text'
 import { SEL, first } from './naver-selectors'
 
 const isPostView = /\/PostView\.naver$/i.test(location.pathname) && location.hostname === 'blog.naver.com'
@@ -93,27 +94,15 @@ function readAuthorNick(): string {
   return /[{}]/.test(nick) ? '' : nick.slice(0, 40)
 }
 
+/** 지금 화면의 댓글 쓰기 입력칸: 답글 칸이 아니고, 쓰기 상자 안에 있는 것을 먼저 */
 function findInput(): HTMLElement | null {
-  return document.querySelector<HTMLElement>(`${SEL.commentWrite} ${SEL.commentInput}`) ?? document.querySelector<HTMLElement>(SEL.commentInput)
+  const all = [...document.querySelectorAll<HTMLElement>(`${SEL.commentMainInput}, ${SEL.commentWrite} ${SEL.commentInput}`)].filter(
+    (el) => !el.closest(SEL.replyArea)
+  )
+  return all.find((el) => el.closest(SEL.commentInbox)) ?? all[0] ?? null
 }
 
-/** 입력칸에 글을 넣는다 (입력칸 안의 편집만. 등록 버튼은 건드리지 않는다) */
-function putText(input: HTMLElement, text: string): FillResult['outcome'] {
-  input.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  input.focus()
-  const selection = window.getSelection()
-  const range = document.createRange()
-  range.selectNodeContents(input)
-  selection?.removeAllRanges()
-  selection?.addRange(range)
-  const ok = document.execCommand('insertText', false, text)
-  if (!ok || norm(input.innerText) !== norm(text)) {
-    input.textContent = text
-    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }))
-  }
-  // 네이버가 입력칸을 바꿔 끼웠으면 채운 것으로 치지 않는다
-  return input.isConnected && norm(input.innerText) === norm(text) ? 'filled' : 'no-input'
-}
+const loggedOut = (el: HTMLElement): boolean => el.closest(SEL.commentLoggedOut) !== null
 
 /** 댓글 입력칸에 글을 넣는다. 등록 버튼은 건드리지 않는다. */
 async function fill(text: string): Promise<FillResult['outcome']> {
@@ -130,8 +119,8 @@ async function fill(text: string): Promise<FillResult['outcome']> {
     input = await waitFor(findInput, 8000)
     if (!input) return document.querySelector(SEL.commentLoginGuide) ? 'login' : 'no-input'
   }
-  if (document.querySelector(SEL.commentLoggedOut)) return 'login'
-  return putText(input, text)
+  if (loggedOut(input)) return 'login'
+  return putText(findInput, text, { blocked: loggedOut })
 }
 
 /** 내 글의 댓글에 답글 초안을 넣는다. 답글 입력칸이 닫혀 있으면 그 댓글의 "답글" 버튼만 누른다 (허용 버튼). */
@@ -145,8 +134,8 @@ async function fillReply(commentNo: string, text: string): Promise<FillResult['o
     input = await waitFor(find, 6000)
     if (!input) return 'no-reply'
   }
-  if (input.closest(SEL.commentLoggedOut)) return 'login'
-  return putText(input, text)
+  if (loggedOut(input)) return 'login'
+  return putText(find, text, { blocked: loggedOut })
 }
 
 /** 지금 화면에 보이는 원댓글을 읽는다 (내 댓글, 지운 댓글, 답글은 뺀다) */
