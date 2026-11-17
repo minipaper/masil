@@ -1,3 +1,4 @@
+import { pickNextInRound, summarizeRound } from '@shared/round'
 import type { CheckStatus, CommentRecord, CurrentPost, DraftsState, NaverViewState, Neighbor, Post, Settings } from '@shared/types'
 
 export type LeftTab = 'today' | 'neighbors' | 'quiet'
@@ -17,6 +18,13 @@ class AppState {
   drafts = $state<DraftsState | null>(null)
   history = $state<CommentRecord[]>([])
   settingsOpen = $state(false)
+  /** 이웃 가져오기 패널 (왼쪽) */
+  importOpen = $state(false)
+  /** 마실 모드: 시작 시각과 시작할 때 남은 글 수 */
+  round = $state<{ startedAt: string; total: number; visited: number[] } | null>(null)
+  roundFinished = $state(false)
+  /** 웹뷰를 가리는 이유들 (설정 창, 마실 끝 화면, 경계선 끌기) */
+  private hideReasons = new Set<string>()
 
   selectedPost = $derived(this.posts.find((p) => p.id === this.selectedPostId) ?? null)
   /** 오른쪽 패널의 이웃: 웹뷰에 열린 글의 이웃 → 출석부에서 고른 글의 이웃 순 */
@@ -28,6 +36,7 @@ class AppState {
   historyBlogId = $derived(this.currentPost?.blogId ?? this.selectedNeighbor?.blogId ?? null)
   pendingCount = $derived(this.posts.filter((p) => p.status === 'new' || p.status === 'read').length)
   /** 지금 연 글을 뺀 나머지 들를 글 수 ("다음 글" 버튼용) */
+  roundStats = $derived(this.round ? summarizeRound(this.posts, this.round.startedAt) : null)
   pendingOthers = $derived(
     this.posts.filter((p) => (p.status === 'new' || p.status === 'read') && p.id !== this.selectedPostId).length
   )
@@ -46,6 +55,13 @@ class AppState {
       void this.loadHistory()
     })
     api.drafts.onState((s) => (this.drafts = s))
+    api.onSettings((s) => (this.settings = s))
+    api.onCommentConfirmed((c) => {
+      // 마실 중이면 등록이 확인된 뒤 잠깐 보여 주고 다음 글로
+      if (this.round && this.currentPost?.blogId === c.blogId && this.currentPost.logNo === c.logNo) {
+        setTimeout(() => void this.advance(), 1500)
+      }
+    })
     api.comments.onChanged((blogId) => {
       if (blogId === this.historyBlogId) void this.loadHistory()
     })
@@ -70,10 +86,59 @@ class AppState {
     this.history = blogId ? await api.comments.forBlog(blogId) : []
   }
 
+  /** WebContentsView는 항상 화면 맨 위에 그려지므로, 앱 화면이 그 자리를 써야 할 때 숨긴다 */
+  hideNaver(reason: string, hidden: boolean): void {
+    if (hidden) this.hideReasons.add(reason)
+    else this.hideReasons.delete(reason)
+    api.naver.setHidden(this.hideReasons.size > 0)
+  }
+
   openSettings(open: boolean): void {
     this.settingsOpen = open
-    // WebContentsView는 항상 화면 맨 위에 그려지므로 설정 화면이 열려 있는 동안 숨긴다
-    api.naver.setHidden(open)
+    this.hideNaver('settings', open)
+  }
+
+  // ── 마실 모드 ──
+
+  async startRound(): Promise<void> {
+    await this.refresh()
+    this.round = { startedAt: new Date().toISOString(), total: this.pendingCount, visited: [] }
+    this.setFinished(false)
+    await this.openRoundNext()
+  }
+
+  /** 다음 글로. 마실 중이면 이번 바퀴에 들른 글은 다시 열지 않고, 더 없으면 "오늘 마실 끝" */
+  async advance(): Promise<void> {
+    const round = this.round
+    if (!round) {
+      await this.openNextPending()
+      return
+    }
+    if (this.selectedPostId != null && !round.visited.includes(this.selectedPostId)) round.visited.push(this.selectedPostId)
+    await this.refresh()
+    await this.openRoundNext()
+  }
+
+  private async openRoundNext(): Promise<void> {
+    const round = this.round
+    if (!round) return
+    const next = pickNextInRound(this.posts, round.visited)
+    if (!next) {
+      this.setFinished(true)
+      return
+    }
+    round.visited.push(next.id)
+    await this.openPost(next.id)
+  }
+
+  endRound(): void {
+    this.round = null
+    this.setFinished(false)
+  }
+
+  private setFinished(done: boolean): void {
+    this.roundFinished = done
+    this.hideNaver('round-finished', done)
   }
 
   async refresh(): Promise<void> {
@@ -95,7 +160,7 @@ class AppState {
   async skipSelected(): Promise<void> {
     if (this.selectedPostId == null) return
     await api.posts.skip(this.selectedPostId)
-    await this.openNextPending()
+    await this.advance()
   }
 
   /** 들러야 하는 글 중 가장 오래된 것을 연다 (마실 모드의 기본 동작) */

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ImportPanel from './ImportPanel.svelte'
   import { daysSince, formatLastComment } from '@shared/format'
   import type { Neighbor, NeighborPatch } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
@@ -55,9 +56,14 @@
   }
 </script>
 
-{#if !quiet}
+{#if !quiet && appState.importOpen}
+  <ImportPanel />
+{:else if !quiet}
   <form class="add" onsubmit={add}>
-    <label for="neighbor-input">블로그 ID나 주소</label>
+    <div class="label-row">
+      <label for="neighbor-input">블로그 ID나 주소</label>
+      <button type="button" class="import-btn" onclick={() => (appState.importOpen = true)}>내 이웃 목록에서 가져오기</button>
+    </div>
     <div class="row">
       <input id="neighbor-input" bind:value={input} placeholder="예: springrain 또는 blog.naver.com/springrain" disabled={adding} />
       <button type="submit" disabled={adding || !input.trim()}>{adding ? '확인 중' : '추가'}</button>
@@ -104,6 +110,20 @@
   .add {
     padding: 12px 18px;
     border-bottom: 1px solid var(--line);
+  }
+  .label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .import-btn {
+    background: none;
+    border: 0;
+    padding: 0;
+    font-size: 12px;
+    color: var(--pen-blue);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
   .add label {
     font-size: 12px;

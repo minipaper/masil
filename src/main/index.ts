@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { app, BrowserWindow, Notification, session, shell, type Tray } from 'electron'
 import { parsePostRef } from '@shared/blog-id'
+import { blogHomeId } from '@shared/buddy'
 import { IPC } from '@shared/ipc'
 import { NAVER_PARTITION } from '@shared/policy'
 import { isQuietTime, summarizeNewPosts } from '@shared/schedule'
@@ -8,12 +9,14 @@ import type { Post, Settings } from '@shared/types'
 import { toChromeUserAgent } from '@shared/user-agent'
 import { closeDb, getDb } from './db'
 import { registerIpc } from './ipc'
+import { NeighborImport } from './neighbor-import'
 import { NaverView } from './naver-view'
 import { PostSession } from './post-session'
 import { resourcePath } from './paths'
 import * as repo from './repo'
 import { RssChecker } from './rss-checker'
-import { getSettings } from './settings'
+import { getSettings, updateSettings } from './settings'
+import { StyleService } from './style'
 import { createTray, setTrayPending } from './tray'
 
 const isMac = process.platform === 'darwin'
@@ -26,6 +29,9 @@ let postSession: PostSession | null = null
 let tray: Tray | null = null
 let checker: RssChecker | null = null
 let quitting = false
+/** "내 블로그 찾기"를 누른 뒤 블로그 홈 주소에 도착하기를 기다리는 중 (기한) */
+let findingMyBlogUntil = 0
+const MY_BLOG_URL = 'https://blog.naver.com/MyBlog.naver'
 
 function send(channel: string, ...args: unknown[]): void {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, ...args)
@@ -110,7 +116,19 @@ function openPost(postId: number): void {
 }
 
 /** 웹뷰에서 사용자가 직접 이웃 글로 이동해도 읽음으로 처리한다 */
+function findMyBlog(): void {
+  findingMyBlogUntil = Date.now() + 5 * 60_000 // 로그인을 거치는 시간까지
+  naverView?.load(MY_BLOG_URL)
+}
+
 function onNaverNavigate(url: string): void {
+  if (findingMyBlogUntil > Date.now()) {
+    const id = blogHomeId(url)
+    if (id) {
+      findingMyBlogUntil = 0
+      send(IPC.evSettings, updateSettings(getDb(), { myBlogId: id }))
+    }
+  }
   const ref = parsePostRef(url)
   postSession?.onNavigate(ref)
   if (!ref) return
@@ -162,8 +180,19 @@ if (!app.requestSingleInstanceLock()) {
       currentPost: (p) => send(IPC.evCurrentPost, p),
       drafts: (s) => send(IPC.evDrafts, s),
       commentsChanged: (blogId) => send(IPC.evCommentsChanged, blogId),
+      commentConfirmed: (blogId, logNo) => {
+        send(IPC.evCommentConfirmed, { blogId, logNo })
+        style.maybePropose()
+      },
       dataChanged
     })
+    const style = new StyleService(db, (s) => send(IPC.evStyle, s))
+    const importer = new NeighborImport(
+      db,
+      () => naverView?.webContents ?? null,
+      (p) => send(IPC.evImportProgress, p),
+      dataChanged
+    )
 
     checker = new RssChecker(db, {
       onStatus: (s) => send(IPC.evCheckStatus, s),
@@ -180,7 +209,11 @@ if (!app.requestSingleInstanceLock()) {
       onSettingsChanged: (s) => {
         checker?.reschedule()
         applyLoginItem(s)
-      }
+      },
+      style,
+      importer,
+      window: () => mainWindow,
+      findMyBlog
     })
 
     tray = createTray({

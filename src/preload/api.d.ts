@@ -1,6 +1,9 @@
 import type { NaverNav } from '../shared/ipc'
+import type { StyleState } from '@shared/style'
 import type {
   AddNeighborResult,
+  BuddyScan,
+  ImportProgress,
   CheckStatus,
   CommentRecord,
   CurrentPost,
@@ -64,6 +67,35 @@ export interface MasilApi {
     /** null이면 키 삭제 */
     setKey(key: string | null): Promise<{ ok: boolean; message?: string; settings: Settings }>
     test(): Promise<{ ok: boolean; message: string }>
+  }
+  style: {
+    state(): Promise<StyleState>
+    /** 지금 개정안 만들기 */
+    refresh(): Promise<void>
+    approve(id: number): Promise<void>
+    reject(id: number): Promise<void>
+    /** 직접 고친 가이드를 바로 적용 (빈 글이면 가이드 끄기) */
+    save(content: string): Promise<void>
+    onState(cb: (s: StyleState) => void): Unsubscribe
+  }
+  importer: {
+    /** 웹뷰에 이웃 관리 화면을 연다 */
+    openPage(): Promise<{ ok: boolean; message: string }>
+    /** 웹뷰에 보이는 화면에서 이웃을 읽는다 */
+    scan(): Promise<BuddyScan>
+    run(blogIds: string[]): Promise<void>
+    cancel(): Promise<void>
+    status(): Promise<ImportProgress>
+    onProgress(cb: (p: ImportProgress) => void): Unsubscribe
+  }
+  /** 웹뷰에서 내 블로그를 열어 ID를 알아낸다 (찾으면 onSettings로 알려 준다) */
+  findMyBlog(): Promise<void>
+  onSettings(cb: (s: Settings) => void): Unsubscribe
+  onCommentConfirmed(cb: (c: { blogId: string; logNo: string }) => void): Unsubscribe
+  data: {
+    export(): Promise<{ ok: boolean; message: string }>
+    /** 성공하면 앱이 다시 시작된다 */
+    import(): Promise<{ ok: boolean; message: string }>
   }
   onDataChanged(cb: () => void): Unsubscribe
   onSelectPost(cb: (postId: number) => void): Unsubscribe

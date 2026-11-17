@@ -1,4 +1,5 @@
 import type { RssItem } from '@shared/rss'
+import type { StyleGuide } from '@shared/style'
 import { nextStatus, type PostEvent } from '@shared/post-state'
 import type { Closeness, CommentRecord, DraftItem, Neighbor, NeighborPatch, Post, PostStatus, Speech } from '@shared/types'
 import type { DB } from './db'
@@ -433,4 +434,93 @@ export function activeStyleGuide(db: DB): string | null {
     | { content: string }
     | undefined
   return row?.content ?? null
+}
+
+// ───────── 문체 가이드 ─────────
+
+interface StyleRow {
+  id: number
+  content: string
+  source: StyleGuide['source']
+  status: StyleGuide['status']
+  based_on_count: number
+  created_at: string
+}
+
+const toGuide = (r: StyleRow): StyleGuide => ({
+  id: r.id,
+  content: r.content,
+  source: r.source,
+  status: r.status,
+  basedOnCount: r.based_on_count,
+  createdAt: r.created_at
+})
+
+export function countConfirmedComments(db: DB): number {
+  return (db.prepare(`SELECT COUNT(*) AS n FROM comments WHERE status = 'confirmed'`).get() as { n: number }).n
+}
+
+function guideWithStatus(db: DB, status: StyleGuide['status']): StyleGuide | null {
+  const row = db.prepare(`SELECT * FROM style_guides WHERE status = ? ORDER BY id DESC LIMIT 1`).get(status) as
+    | StyleRow
+    | undefined
+  return row ? toGuide(row) : null
+}
+
+export const activeGuide = (db: DB): StyleGuide | null => guideWithStatus(db, 'active')
+export const proposedGuide = (db: DB): StyleGuide | null => guideWithStatus(db, 'proposed')
+
+/** 마지막 AI 개정안이 몇 개의 최종본을 보고 만들어졌는지 (승인·거절 무관) */
+export function lastAiBasedOn(db: DB): number {
+  const row = db.prepare(`SELECT MAX(based_on_count) AS n FROM style_guides WHERE source = 'ai'`).get() as {
+    n: number | null
+  }
+  return row.n ?? 0
+}
+
+/** 새 개정안. 이전에 보류 중이던 개정안은 거절로 돌린다. */
+export function insertProposal(db: DB, content: string, basedOn: number): StyleGuide {
+  return db.transaction(() => {
+    db.prepare(`UPDATE style_guides SET status = 'rejected' WHERE status = 'proposed'`).run()
+    const info = db
+      .prepare(
+        `INSERT INTO style_guides (content, source, status, based_on_count, created_at) VALUES (?, 'ai', 'proposed', ?, ?)`
+      )
+      .run(content, basedOn, now())
+    return guideWithStatus(db, 'proposed') ?? toGuide({
+      id: Number(info.lastInsertRowid),
+      content,
+      source: 'ai',
+      status: 'proposed',
+      based_on_count: basedOn,
+      created_at: now()
+    })
+  })()
+}
+
+export function approveProposal(db: DB, id: number): boolean {
+  return db.transaction(() => {
+    const row = db.prepare(`SELECT id FROM style_guides WHERE id = ? AND status = 'proposed'`).get(id)
+    if (!row) return false
+    db.prepare(`UPDATE style_guides SET status = 'archived' WHERE status = 'active'`).run()
+    db.prepare(`UPDATE style_guides SET status = 'active' WHERE id = ?`).run(id)
+    return true
+  })()
+}
+
+export function rejectProposal(db: DB, id: number): void {
+  db.prepare(`UPDATE style_guides SET status = 'rejected' WHERE id = ? AND status = 'proposed'`).run(id)
+}
+
+/** 직접 고친 가이드를 바로 적용한다. 빈 글이면 가이드를 끈다. */
+export function saveManualGuide(db: DB, content: string): void {
+  db.transaction(() => {
+    db.prepare(`UPDATE style_guides SET status = 'archived' WHERE status = 'active'`).run()
+    const text = content.trim()
+    if (text) {
+      db.prepare(
+        `INSERT INTO style_guides (content, source, status, based_on_count, created_at) VALUES (?, 'manual', 'active', ?, ?)`
+      ).run(text, countConfirmedComments(db), now())
+    }
+  })()
 }

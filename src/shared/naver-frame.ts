@@ -11,8 +11,20 @@ export const NAVER_FRAME = {
   /** frame → main: 등록 후 댓글 목록에 나타났는지 (SubmitResult) */
   submitResult: 'naverframe:submit-result',
   /** frame → main: 사용자가 공감 버튼을 눌렀다 ({blogId, logNo, liked}) */
-  like: 'naverframe:like'
+  like: 'naverframe:like',
+  /** main → 모든 프레임: 이웃 목록 화면의 블로그 링크를 읽어 달라 ({requestId}). 사용자가 "읽기"를 눌렀을 때만 */
+  scanBuddies: 'naverframe:scan-buddies',
+  /** frame → main: 읽은 링크 (BuddyScanResult) */
+  buddies: 'naverframe:buddies'
 } as const
+
+export interface BuddyScanResult {
+  requestId: string
+  url: string
+  /** 이웃 목록 영역을 찾았는지 (못 찾으면 문서 전체에서 읽은 것) */
+  inList: boolean
+  links: { href: string; text: string }[]
+}
 
 export interface FillRequest {
   requestId: string

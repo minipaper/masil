@@ -27,7 +27,13 @@ export const SEL = {
   /** 로그아웃 상태에서도 입력칸은 그려지고, 쓰기 상자에 이 클래스가 붙는다. 이때 입력칸을 건드리면 네이버가 쓰기 영역을 바꿔 버린다. */
   commentLoggedOut: '.u_cbox_type_logged_out',
   commentLoginGuide: '.u_cbox_type_logged_out, .u_cbox_write_login, .u_cbox_login, .u_cbox_needlogin',
-  commentContents: '.u_cbox_comment .u_cbox_contents'
+  commentContents: '.u_cbox_comment .u_cbox_contents',
+
+  /**
+   * 이웃 관리 화면의 이웃 목록 영역 후보 (로그인 상태에서만 보여 아직 실제 구조를 확인하지 못했다).
+   * 못 찾으면 문서 전체의 블로그 링크를 읽고, 사용자가 목록에서 고르게 한다.
+   */
+  buddyList: ['#buddyListManageForm', '.buddy_list', '.list_buddy', '#buddylist', 'table.tbl_buddy', '.buddy_manage table']
 } as const
 
 export function first(selectors: readonly string[], root: ParentNode = document): HTMLElement | null {

@@ -138,6 +138,10 @@
   }
   .sh h2 {
     margin: 0;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-family: var(--font-head);
     font-weight: 800;
     font-size: 17px;
@@ -155,6 +159,9 @@
     gap: 4px;
   }
   .sh small {
+    flex: none;
+    white-space: nowrap;
+    margin-left: 8px;
     font-size: 12px;
     color: var(--graphite-soft);
   }

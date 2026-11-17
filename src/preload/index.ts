@@ -55,6 +55,29 @@ const api: MasilApi = {
     setKey: (key) => ipcRenderer.invoke(IPC.aiSetKey, key),
     test: () => ipcRenderer.invoke(IPC.aiTest)
   },
+  style: {
+    state: () => ipcRenderer.invoke(IPC.styleState),
+    refresh: () => ipcRenderer.invoke(IPC.styleRefresh),
+    approve: (id) => ipcRenderer.invoke(IPC.styleApprove, id),
+    reject: (id) => ipcRenderer.invoke(IPC.styleReject, id),
+    save: (content) => ipcRenderer.invoke(IPC.styleSave, content),
+    onState: (cb) => on(IPC.evStyle, cb)
+  },
+  importer: {
+    openPage: () => ipcRenderer.invoke(IPC.importOpenPage),
+    scan: () => ipcRenderer.invoke(IPC.importScan),
+    run: (ids) => ipcRenderer.invoke(IPC.importRun, ids),
+    cancel: () => ipcRenderer.invoke(IPC.importCancel),
+    status: () => ipcRenderer.invoke(IPC.importStatus),
+    onProgress: (cb) => on(IPC.evImportProgress, cb)
+  },
+  findMyBlog: () => ipcRenderer.invoke(IPC.findMyBlog),
+  onSettings: (cb) => on(IPC.evSettings, cb),
+  onCommentConfirmed: (cb) => on(IPC.evCommentConfirmed, cb),
+  data: {
+    export: () => ipcRenderer.invoke(IPC.dataExport),
+    import: () => ipcRenderer.invoke(IPC.dataImport)
+  },
   onDataChanged: (cb) => on(IPC.evDataChanged, cb),
   onSelectPost: (cb) => on(IPC.evSelectPost, cb)
 }

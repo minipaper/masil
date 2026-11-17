@@ -2,6 +2,7 @@
   import { MIN_CHECK_INTERVAL_MINUTES } from '@shared/policy'
   import type { Settings } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
+  import StyleGuideSection from './StyleGuideSection.svelte'
 
   const api = window.masil
 
@@ -23,8 +24,17 @@
     quietEnabled: initial.quietHours.enabled,
     quietStart: initial.quietHours.start,
     quietEnd: initial.quietHours.end,
-    launchAtLogin: initial.launchAtLogin
+    launchAtLogin: initial.launchAtLogin,
+    tones: initial.ai.tones.map((t) => ({ ...t })),
+    examples: { ...initial.ai.examples },
+    myBlogId: initial.myBlogId ?? ''
   })
+  // 내 블로그 찾기는 웹뷰에서 끝나므로, 그사이 main이 알려 준 값을 반영한다
+  $effect(() => {
+    const id = appState.settings?.myBlogId
+    if (id && !form.myBlogId) form.myBlogId = id
+  })
+  let dataNote = $state<{ ok: boolean; text: string } | null>(null)
   let apiKey = $state('')
   let hasKey = $state(initial.hasApiKey)
   let saving = $state(false)
@@ -47,12 +57,15 @@
       checkIntervalMinutes: Math.max(MIN_CHECK_INTERVAL_MINUTES, Math.round(form.checkIntervalMinutes || 0)),
       quietHours: { enabled: form.quietEnabled, start: form.quietStart, end: form.quietEnd },
       launchAtLogin: form.launchAtLogin,
+      myBlogId: form.myBlogId.trim() || null,
       ai: {
         ...initial.ai,
         baseUrl: form.baseUrl,
         model: form.model,
         autoGenerate: form.autoGenerate,
-        sendImages: form.sendImages
+        sendImages: form.sendImages,
+        tones: form.tones,
+        examples: form.examples
       }
     })
     return true
@@ -84,6 +97,23 @@
     const res = await api.ai.setKey(null)
     hasKey = res.settings.hasApiKey
     notice = { ok: true, text: 'API 키를 지웠어요.' }
+  }
+
+  function findMyBlog(): void {
+    appState.openSettings(false)
+    void api.findMyBlog()
+  }
+
+  async function exportData(): Promise<void> {
+    dataNote = null
+    const res = await api.data.export()
+    if (res.message) dataNote = { ok: res.ok, text: res.message }
+  }
+
+  async function importData(): Promise<void> {
+    dataNote = null
+    const res = await api.data.import()
+    if (res.message) dataNote = { ok: res.ok, text: res.message }
   }
 
   function onKey(e: KeyboardEvent): void {
@@ -144,7 +174,27 @@
           이미지는 글보다 토큰을 훨씬 많이 써서 비용이 크게 늘 수 있어요. 이미지를 읽을 수 있는(비전) 모델에서만 켜 주세요.
           켜 두면 글마다 이미지를 최대 4장까지 보내고, 꺼 두면 이미지는 보내지 않아요.
         </p>
+
+        <h4>톤 세 가지</h4>
+        <p class="hint">초안은 이 순서대로 1, 2, 3번이 돼요. 설명은 AI에게 그대로 전해져요.</p>
+        {#each form.tones as tone, i (i)}
+          <div class="tone">
+            <span class="tn" aria-hidden="true">{i + 1}</span>
+            <input bind:value={tone.name} aria-label="{i + 1}번 톤 이름" />
+            <input bind:value={tone.description} aria-label="{i + 1}번 톤 설명" placeholder="이 톤으로 어떻게 쓸지" />
+          </div>
+        {/each}
+
+        <h4>프롬프트에 넣을 예시</h4>
+        <div class="nums">
+          <label>최근 내 댓글 <input type="number" min="0" max="10" bind:value={form.examples.recent} />개</label>
+          <label>이 이웃에게 쓴 댓글 <input type="number" min="0" max="10" bind:value={form.examples.neighbor} />개</label>
+          <label>초안을 고친 예 <input type="number" min="0" max="10" bind:value={form.examples.pairs} />쌍</label>
+        </div>
+        <p class="hint">많이 넣을수록 내 말투에 가까워지지만 토큰도 늘어나요.</p>
       </section>
+
+      <StyleGuideSection />
 
       <section>
         <h3>새 글 확인</h3>
@@ -167,6 +217,29 @@
             <input type="time" bind:value={form.quietEnd} aria-label="방해 금지 끝" /> 까지
           </div>
         {/if}
+      </section>
+
+      <section>
+        <h3>내 블로그</h3>
+        <label class="field">
+          <span>블로그 ID</span>
+          <span class="inline grow">
+            <input bind:value={form.myBlogId} placeholder="로그인한 뒤 찾기를 누르세요" spellcheck="false" />
+            <button type="button" class="ghost" disabled={!appState.naver?.loggedIn} onclick={findMyBlog}>웹뷰에서 찾기</button>
+          </span>
+        </label>
+        <p class="hint">이웃 가져오기에 쓰고, 내 블로그는 이웃 명단에 넣지 않아요. 찾기를 누르면 웹뷰에 내 블로그를 열어 주소에서 ID를 읽어요.</p>
+      </section>
+
+      <section>
+        <h3>데이터</h3>
+        <p class="hint">이웃 명단, 출석부, 댓글 기록, 설정을 파일 하나로 내보내요. API 키와 네이버 로그인은 들어가지 않아요.</p>
+        <div class="row-start">
+          <button type="button" class="ghost" onclick={exportData}>내보내기</button>
+          <button type="button" class="ghost" onclick={importData}>가져오기</button>
+          {#if dataNote}<span class="data-note" class:error={!dataNote.ok}>{dataNote.text}</span>{/if}
+        </div>
+        <p class="hint">가져오면 지금 데이터를 먼저 자동으로 백업하고, 마실을 다시 시작해요.</p>
       </section>
 
       <section>
@@ -282,6 +355,52 @@
   .inline {
     display: inline-flex;
     align-items: center;
+  }
+  .inline.grow {
+    display: flex;
+    gap: 6px;
+  }
+  .inline.grow input {
+    flex: 1;
+  }
+  h4 {
+    margin: 14px 0 2px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .tone {
+    display: grid;
+    grid-template-columns: 20px 130px 1fr;
+    gap: 6px;
+    align-items: center;
+    margin: 4px 0;
+  }
+  .tn {
+    font-family: var(--font-hand);
+    font-size: 19px;
+    color: var(--pen-blue);
+    text-align: center;
+  }
+  .nums {
+    display: grid;
+    gap: 4px;
+    font-size: 13px;
+  }
+  .nums input {
+    width: 56px;
+    margin: 0 4px 0 8px;
+  }
+  .row-start {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .data-note {
+    font-size: 12.5px;
+    color: var(--cover);
+  }
+  .data-note.error {
+    color: var(--margin);
   }
   .presets {
     display: flex;

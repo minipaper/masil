@@ -24,6 +24,19 @@ export const IPC = {
   commentsForBlog: 'comments:for-blog',
   aiSetKey: 'ai:set-key',
   aiTest: 'ai:test',
+  styleState: 'style:state',
+  styleRefresh: 'style:refresh',
+  styleApprove: 'style:approve',
+  styleReject: 'style:reject',
+  styleSave: 'style:save',
+  importOpenPage: 'import:open-page',
+  importScan: 'import:scan',
+  importRun: 'import:run',
+  importCancel: 'import:cancel',
+  importStatus: 'import:status',
+  findMyBlog: 'naver:find-my-blog',
+  dataExport: 'data:export',
+  dataImport: 'data:import',
 
   // main → renderer (send)
   evCheckStatus: 'ev:check-status',
@@ -32,7 +45,13 @@ export const IPC = {
   evSelectPost: 'ev:select-post',
   evCurrentPost: 'ev:current-post',
   evDrafts: 'ev:drafts',
-  evCommentsChanged: 'ev:comments-changed'
+  evCommentsChanged: 'ev:comments-changed',
+  /** 등록이 확인된 댓글 ({blogId, logNo}). 마실 모드에서 다음 글로 넘어갈 때 쓴다 */
+  evCommentConfirmed: 'ev:comment-confirmed',
+  evStyle: 'ev:style',
+  evImportProgress: 'ev:import-progress',
+  /** main에서 설정이 바뀜 (내 블로그 찾기 등) */
+  evSettings: 'ev:settings'
 } as const
 
 export type NaverNav = 'back' | 'forward' | 'reload' | 'login' | 'home'

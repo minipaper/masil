@@ -9,7 +9,7 @@
  *  - 예외: 사용자가 "채우기"를 눌렀을 때, 접힌 댓글 영역을 펼치는 토글(#Comi{logNo})만 누를 수 있다.
  */
 import { ipcRenderer } from 'electron'
-import { NAVER_FRAME, type FillRequest, type FillResult } from '@shared/naver-frame'
+import { NAVER_FRAME, type BuddyScanResult, type FillRequest, type FillResult } from '@shared/naver-frame'
 import type { PostContent } from '@shared/prompt'
 import { SEL, first } from './naver-selectors'
 
@@ -166,5 +166,20 @@ if (isPostView && blogId && logNo) {
     void waitFor(extractPost, 15_000, 300).then((post) => {
       if (post) ipcRenderer.send(NAVER_FRAME.post, post)
     })
+  })
+}
+
+// 이웃 가져오기: 사용자가 "이 화면에서 읽기"를 눌렀을 때만 링크를 읽는다 (클릭이나 이동은 하지 않는다)
+if (/(^|\.)blog\.naver\.com$/i.test(location.hostname)) {
+  ipcRenderer.on(NAVER_FRAME.scanBuddies, (_e, req: { requestId: string }) => {
+    const area = first(SEL.buddyList)
+    const root: ParentNode = area ?? document
+    const links: BuddyScanResult['links'] = []
+    for (const a of root.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+      if (!/blog\.naver\.com/i.test(a.href)) continue
+      links.push({ href: a.href, text: (a.innerText || a.title || '').slice(0, 60) })
+      if (links.length >= 2000) break
+    }
+    ipcRenderer.send(NAVER_FRAME.buddies, { requestId: req.requestId, url: location.href, inList: area !== null, links } satisfies BuddyScanResult)
   })
 }

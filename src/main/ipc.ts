@@ -1,7 +1,11 @@
 import { ipcMain } from 'electron'
 import { parseBlogId } from '@shared/blog-id'
 import { IPC, type NaverNav } from '@shared/ipc'
+import type { BrowserWindow } from 'electron'
 import type { AddNeighborResult, NeighborPatch, Rect, Settings } from '@shared/types'
+import { exportData, importData } from './backup'
+import { buddyPageUrl, type NeighborImport } from './neighbor-import'
+import type { StyleService } from './style'
 import type { DB } from './db'
 import { describeAiError, testConnection } from './ai'
 import type { NaverView } from './naver-view'
@@ -19,9 +23,15 @@ interface Ctx {
   dataChanged: () => void
   openPost: (postId: number) => void
   onSettingsChanged: (s: Settings) => void
+  style: StyleService
+  importer: NeighborImport
+  window: () => BrowserWindow | null
+  /** 웹뷰에서 "내 블로그"를 열어 ID를 알아낸다 */
+  findMyBlog: () => void
 }
 
-const REASON_TEXT: Record<'duplicate' | 'not-found' | 'network', string> = {
+const REASON_TEXT: Record<'duplicate' | 'not-found' | 'network' | 'self', string> = {
+  self: '내 블로그는 이웃으로 등록하지 않아도 돼요.',
   duplicate: '이미 등록한 이웃이에요.',
   'not-found': '블로그를 찾지 못했어요. ID나 주소를 확인해 주세요.',
   network: '네이버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.'
@@ -104,4 +114,31 @@ export function registerIpc(ctx: Ctx): void {
     }
   })
   ipcMain.handle(IPC.aiTest, () => testConnection(getSettings(db).ai, getApiKey(db)))
+
+  // ── 문체 가이드 ──
+  ipcMain.handle(IPC.styleState, () => ctx.style.state())
+  ipcMain.handle(IPC.styleRefresh, () => ctx.style.propose())
+  ipcMain.handle(IPC.styleApprove, (_e, id: number) => ctx.style.approve(Number(id)))
+  ipcMain.handle(IPC.styleReject, (_e, id: number) => ctx.style.reject(Number(id)))
+  ipcMain.handle(IPC.styleSave, (_e, content: string) => ctx.style.saveManual(String(content ?? '')))
+
+  // ── 이웃 가져오기 ──
+  ipcMain.handle(IPC.importOpenPage, () => {
+    const myBlogId = getSettings(db).myBlogId
+    if (!myBlogId) return { ok: false, message: '먼저 내 블로그를 찾아 주세요.' }
+    ctx.naver()?.load(buddyPageUrl(myBlogId))
+    return { ok: true, message: '' }
+  })
+  ipcMain.handle(IPC.importScan, () => ctx.importer.scan())
+  ipcMain.handle(IPC.importRun, (_e, ids: string[]) => {
+    const valid = (Array.isArray(ids) ? ids : []).map((id) => parseBlogId(String(id))).filter((id): id is string => !!id)
+    void ctx.importer.run(valid)
+  })
+  ipcMain.handle(IPC.importCancel, () => ctx.importer.cancel())
+  ipcMain.handle(IPC.importStatus, () => ctx.importer.status())
+  ipcMain.handle(IPC.findMyBlog, () => ctx.findMyBlog())
+
+  // ── 백업 ──
+  ipcMain.handle(IPC.dataExport, () => exportData(db, ctx.window()))
+  ipcMain.handle(IPC.dataImport, () => importData(db, ctx.window()))
 }

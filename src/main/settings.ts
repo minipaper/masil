@@ -1,3 +1,4 @@
+import { parseBlogId } from '@shared/blog-id'
 import { safeStorage } from 'electron'
 import { DEFAULT_CHECK_INTERVAL_MINUTES, clampCheckInterval } from '@shared/policy'
 import { DEFAULT_TONES } from '@shared/prompt'
@@ -27,7 +28,8 @@ export const DEFAULT_SETTINGS: StoredSettings = {
 }
 
 const KEY = 'app'
-const API_KEY = 'ai.key'
+/** settings 테이블에서 암호화된 API 키를 담는 행 (백업에서는 뺀다) */
+export const API_KEY = 'ai.key'
 
 const clampInt = (v: unknown, min: number, max: number, fallback: number): number =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : fallback
@@ -38,6 +40,7 @@ function normalize(s: StoredSettings): StoredSettings {
   return {
     ...s,
     checkIntervalMinutes: clampCheckInterval(s.checkIntervalMinutes),
+    myBlogId: s.myBlogId ? parseBlogId(String(s.myBlogId)) : null,
     paneWidths: {
       left: clampInt(s.paneWidths.left, 280, 560, 352),
       right: clampInt(s.paneWidths.right, 300, 560, 380)

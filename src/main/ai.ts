@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import type { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { buildUserPrompt, findCliche, parseDrafts, systemPrompt, type Draft, type DraftContext } from '@shared/prompt'
+import { buildStylePrompt, parseStyleGuide, styleSystemPrompt } from '@shared/style'
 import type { AiSettings } from '@shared/types'
 
 /** 초안 품질 일관성을 위해 고정 (docs/DECISIONS.md "AI 초안") */
@@ -66,6 +67,20 @@ export async function generateDrafts(
     }
   }
   return drafts
+}
+
+/** 최종본으로 문체 가이드 개정안을 만든다 */
+export async function generateStyleGuide(
+  ai: AiSettings,
+  apiKey: string | null,
+  input: Parameters<typeof buildStylePrompt>[0]
+): Promise<string> {
+  const api = client(ai, apiKey)
+  const raw = await complete(api, ai, [
+    { role: 'system', content: styleSystemPrompt() },
+    { role: 'user', content: buildStylePrompt(input) }
+  ])
+  return parseStyleGuide(raw)
 }
 
 /** 설정 화면의 "연결 확인" */

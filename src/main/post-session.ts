@@ -13,6 +13,8 @@ interface Events {
   drafts: (s: DraftsState) => void
   /** 댓글 기록이나 글 상태가 바뀜 */
   commentsChanged: (blogId: string) => void
+  /** 등록이 댓글 목록에서 확인됨 */
+  commentConfirmed: (blogId: string, logNo: string) => void
   dataChanged: () => void
 }
 
@@ -85,6 +87,7 @@ export class PostSession {
         if (post) repo.applyPostEvent(db, post.id, 'comment')
         this.lastFilled.delete(keyOf(r.blogId, r.logNo))
         this.events.dataChanged()
+        this.events.commentConfirmed(r.blogId, r.logNo)
       }
       this.events.commentsChanged(r.blogId)
     })

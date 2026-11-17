@@ -157,4 +157,23 @@ export interface Rect {
 
 export type AddNeighborResult =
   | { ok: true; neighbor: Neighbor }
-  | { ok: false; reason: 'invalid' | 'duplicate' | 'not-found' | 'network'; message: string }
+  | { ok: false; reason: 'invalid' | 'duplicate' | 'not-found' | 'network' | 'self'; message: string }
+
+/** 이웃 가져오기: 웹뷰 화면에서 읽은 이웃 후보 */
+export interface BuddyScan {
+  candidates: { blogId: string; name: string; registered: boolean }[]
+  /** 이웃 목록 영역을 찾았는지 (못 찾으면 화면 전체의 블로그 링크) */
+  inList: boolean
+  url: string
+}
+
+export interface ImportProgress {
+  running: boolean
+  done: number
+  total: number
+  added: number
+  /** 이미 등록된 이웃 */
+  skipped: number
+  /** 블로그를 찾지 못했거나 연결에 실패한 ID */
+  failed: string[]
+}

@@ -9,7 +9,6 @@
   import Mark from './components/Mark.svelte'
   import { appState, type LeftTab } from './lib/app-state.svelte'
 
-  const api = window.masil
 
   void appState.init()
 
@@ -34,7 +33,7 @@
     const startX = e.clientX
     const start = which === 'left' ? left : right
     // 끄는 동안 마우스가 웹뷰 위를 지나가면 이벤트를 놓치므로 잠시 숨긴다
-    api.naver.setHidden(true)
+    appState.hideNaver('drag', true)
     const move = (ev: PointerEvent): void => {
       const dx = ev.clientX - startX
       if (which === 'left') left = Math.min(560, Math.max(280, start + dx))
@@ -43,7 +42,7 @@
     const up = (): void => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
-      api.naver.setHidden(false)
+      appState.hideNaver('drag', false)
       void appState.saveSettings({ paneWidths: { left, right } })
     }
     window.addEventListener('pointermove', move)
@@ -109,7 +108,7 @@
       </div>
     {/if}
     <div class="start">
-      <button class="pencil" type="button" disabled={appState.pendingCount === 0} onclick={() => appState.openNextPending()}>
+      <button class="pencil" type="button" disabled={appState.pendingCount === 0} onclick={() => appState.startRound()}>
         <span class="tip"></span>
         <span class="body">마실 시작 <small>{appState.pendingCount > 0 ? `남은 ${appState.pendingCount}편` : '들를 글 없음'}</small></span>
         <span class="ferrule"></span><span class="eraser"></span>

@@ -105,7 +105,8 @@ export class RssChecker {
 export async function registerNeighbor(
   db: DB,
   blogId: string
-): Promise<{ ok: true; id: number } | { ok: false; reason: 'duplicate' | 'not-found' | 'network' }> {
+): Promise<{ ok: true; id: number } | { ok: false; reason: 'duplicate' | 'not-found' | 'network' | 'self' }> {
+  if (getSettings(db).myBlogId === blogId) return { ok: false, reason: 'self' }
   if (repo.findNeighborByBlogId(db, blogId)) return { ok: false, reason: 'duplicate' }
   let res
   try {
