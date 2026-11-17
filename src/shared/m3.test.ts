@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { extractBuddies } from './buddy'
 import { baseName, matchesNeighbor, shownName } from './neighbor-name'
+import { isOptionRejected, requestVariants } from './ai-options'
 import { pickNextInRound, roundKey, summarizeRound } from './round'
 import { STYLE_GUIDE_EVERY, buildStylePrompt, diffLines, nextStyleAt, parseStyleGuide, styleGuideDue } from './style'
 import type { Post } from './types'
@@ -157,5 +158,26 @@ describe('이웃 이름', () => {
     expect(matchesNeighbor(n, '초4 지구')).toBe(true)
     expect(matchesNeighbor(n, '콩천사')).toBe(false)
     expect(matchesNeighbor(n, '  ')).toBe(true)
+  })
+})
+
+describe('AI 요청 옵션 조합', () => {
+  it('생각 끄기 > JSON > temperature 순으로 하나씩 줄인다', () => {
+    const v = requestVariants(true, 0.4)
+    expect(v).toHaveLength(8)
+    expect(v[0]).toEqual({ reasoning_effort: 'none', response_format: { type: 'json_object' }, temperature: 0.4 })
+    // Ollama의 MLX 모델처럼 JSON 모드만 모르면 셋째에서 통한다
+    expect(v[2]).toEqual({ reasoning_effort: 'none', temperature: 0.4 })
+    // 생각 끄기를 모르는 일반 모델은 다섯째(예전 첫 시도와 같음)에서 통한다
+    expect(v[4]).toEqual({ response_format: { type: 'json_object' }, temperature: 0.4 })
+    expect(v.at(-1)).toEqual({})
+  })
+  it('JSON이 필요 없으면 JSON 조합은 빠진다', () => {
+    const v = requestVariants(false, 0.7)
+    expect(v).toEqual([{ reasoning_effort: 'none', temperature: 0.7 }, { reasoning_effort: 'none' }, { temperature: 0.7 }, {}])
+  })
+  it('400, 422, 501만 옵션 거절로 본다', () => {
+    expect([400, 422, 501].every(isOptionRejected)).toBe(true)
+    expect([401, 404, 429, 500, undefined].some(isOptionRejected)).toBe(false)
   })
 })

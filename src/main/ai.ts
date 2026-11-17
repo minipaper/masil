@@ -3,10 +3,12 @@ import type { ChatCompletionContentPart, ChatCompletionMessageParam } from 'open
 import { buildUserPrompt, findCliche, parseDrafts, systemPrompt, type Draft, type DraftContext } from '@shared/prompt'
 import { buildStylePrompt, parseStyleGuide, styleSystemPrompt } from '@shared/style'
 import type { AiSettings, AiTestResult } from '@shared/types'
+import { isOptionRejected, requestVariants } from '@shared/ai-options'
 
 /** 초안 품질 일관성을 위해 고정 (docs/DECISIONS.md "AI 초안") */
 export const TEMPERATURE = 0.4
-const TIMEOUT_MS = 60_000
+/** 로컬 모델은 처음 요청에서 모델을 메모리에 올리느라 오래 걸릴 수 있다 */
+const TIMEOUT_MS = 120_000
 
 export class AiSetupError extends Error {}
 
@@ -18,11 +20,8 @@ function client(ai: AiSettings, apiKey: string | null): OpenAI {
 }
 
 /**
- * 서버나 모델마다 받는 옵션이 달라서, 400(잘못된 요청)이면 옵션을 하나씩 빼며 다시 보낸다.
- * - JSON 모드를 모르는 서버
- * - temperature를 바꿀 수 없는 추론형 모델
- */
-/** 서버·모델별로 통했던 옵션 단계를 기억해 매번 실패하는 요청을 다시 보내지 않는다 (앱 실행 중에만) */
+ * 서버나 모델마다 받는 옵션이 달라서, 옵션을 거절하면(400, 422, 501) 덜 중요한 옵션부터 빼며 다시 보낸다.
+ * 조합 순서는 @shared/ai-options. 서버·모델별로 통했던 옵션 단계를 기억해 매번 실패하는 요청을 다시 보내지 않는다 (앱 실행 중에만) */
 const workingStep = new Map<string, number>()
 
 async function complete(
@@ -33,11 +32,7 @@ async function complete(
 ): Promise<string> {
   const json = opts.json ?? true
   const temperature = opts.temperature ?? TEMPERATURE
-  const attempts = [
-    { temperature, ...(json ? { response_format: { type: 'json_object' as const } } : {}) },
-    { temperature },
-    {}
-  ].filter((a, i, arr) => i === 0 || JSON.stringify(a) !== JSON.stringify(arr[i - 1]))
+  const attempts = requestVariants(json, temperature)
   const key = `${ai.baseUrl}|${ai.model}|${json}`
   let lastError: unknown
   for (let i = workingStep.get(key) ?? 0; i < attempts.length; i++) {
@@ -47,7 +42,7 @@ async function complete(
       return res.choices[0]?.message?.content ?? ''
     } catch (e) {
       lastError = e
-      if (!(e instanceof OpenAI.APIError && e.status === 400)) throw e
+      if (!(e instanceof OpenAI.APIError && isOptionRejected(e.status))) throw e
     }
   }
   throw lastError
