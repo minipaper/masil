@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { extractBuddies } from './buddy'
+import { baseName, matchesNeighbor, shownName } from './neighbor-name'
 import { pickNextInRound, roundKey, summarizeRound } from './round'
 import { STYLE_GUIDE_EVERY, buildStylePrompt, diffLines, nextStyleAt, parseStyleGuide, styleGuideDue } from './style'
 import type { Post } from './types'
@@ -132,5 +133,29 @@ describe('마실 중 다음 글', () => {
     expect(pickNextInRound(posts, [])?.id).toBe(3)
     expect(pickNextInRound(posts, [3])?.id).toBe(1)
     expect(pickNextInRound(posts, [3, 1, 2])).toBeNull()
+  })
+})
+
+describe('이웃 이름', () => {
+  const base = { nickname: '지구생활 적응기~♬', nicknameCustom: false, naverNick: null as string | null }
+  it('닉네임을 모르면 블로그 제목', () => {
+    expect(baseName(base)).toBe('지구생활 적응기~♬')
+  })
+  it('글을 열어 닉네임을 알면 닉네임', () => {
+    expect(baseName({ ...base, naverNick: '도시줌마' })).toBe('도시줌마')
+  })
+  it('내가 고친 이름이 가장 먼저, 호칭은 그 위', () => {
+    const n = { ...base, nickname: '줌마 언니', nicknameCustom: true, naverNick: '도시줌마' }
+    expect(baseName(n)).toBe('줌마 언니')
+    expect(shownName({ ...n, honorific: '' })).toBe('줌마 언니')
+    expect(shownName({ ...n, honorific: '줌마님' })).toBe('줌마님')
+  })
+  it('검색은 이름, 닉네임, ID, 메모 어디서든, 여러 단어는 모두 포함', () => {
+    const n = { ...base, naverNick: '도시줌마', honorific: '', blogId: 'since131026', blogTitle: '지구생활 적응기~♬', memo: '초4 엄마' }
+    expect(matchesNeighbor(n, '줌마')).toBe(true)
+    expect(matchesNeighbor(n, 'SINCE13')).toBe(true)
+    expect(matchesNeighbor(n, '초4 지구')).toBe(true)
+    expect(matchesNeighbor(n, '콩천사')).toBe(false)
+    expect(matchesNeighbor(n, '  ')).toBe(true)
   })
 })

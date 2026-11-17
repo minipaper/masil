@@ -90,6 +90,13 @@ const MIGRATIONS: string[] = [
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+  `,
+  // 2: 네이버 닉네임(글을 열 때 읽음)과 "이름을 직접 고쳤는지" (2026-11-17)
+  `
+  ALTER TABLE neighbors ADD COLUMN naver_nick TEXT;
+  ALTER TABLE neighbors ADD COLUMN nickname_custom INTEGER NOT NULL DEFAULT 0;
+  -- 이미 블로그 제목과 다른 이름으로 바꿔 둔 이웃은 직접 고친 것으로 본다
+  UPDATE neighbors SET nickname_custom = 1 WHERE nickname != COALESCE(blog_title, '') AND nickname != blog_id;
   `
 ]
 

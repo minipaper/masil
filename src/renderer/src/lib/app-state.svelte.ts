@@ -14,6 +14,8 @@ class AppState {
   naver = $state<NaverViewState | null>(null)
   selectedPostId = $state<number | null>(null)
   leftTab = $state<LeftTab>('today')
+  /** 이웃 명단 검색어 (명단, 오래 못 간 집 탭이 함께 쓴다) */
+  neighborQuery = $state('')
   currentPost = $state<CurrentPost | null>(null)
   drafts = $state<DraftsState | null>(null)
   history = $state<CommentRecord[]>([])
@@ -172,7 +174,7 @@ class AppState {
   async removeCurrentNeighbor(): Promise<boolean> {
     const n = this.viewingNeighbor
     if (!n) return false
-    const name = n.honorific || n.nickname || n.blogId
+    const name = n.honorific || n.name || n.blogId
     const ok = window.confirm(
       `${name}(${n.blogId}) 님을 이웃 명단에서 뺄까요?\n\n출석부에 있던 이 이웃의 글도 함께 사라지고, 앞으로 새 글을 확인하지 않아요. 내가 남긴 댓글 기록은 남아요.`
     )

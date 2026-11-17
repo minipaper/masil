@@ -1,6 +1,7 @@
 <script lang="ts">
   import ImportPanel from './ImportPanel.svelte'
   import { daysSince, formatLastComment } from '@shared/format'
+  import { matchesNeighbor } from '@shared/neighbor-name'
   import type { Neighbor, NeighborPatch } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
   import MemoEditor from './MemoEditor.svelte'
@@ -16,9 +17,15 @@
   let confirmDeleteId = $state<number | null>(null)
 
   const list = $derived.by(() => {
-    if (!quiet) return appState.neighbors
-    return [...appState.neighbors].sort((a, b) => (a.lastCommentAt ?? '').localeCompare(b.lastCommentAt ?? ''))
+    const found = appState.neighbors.filter((n) => matchesNeighbor(n, appState.neighborQuery))
+    if (!quiet) return found
+    return found.sort((a, b) => (a.lastCommentAt ?? '').localeCompare(b.lastCommentAt ?? ''))
   })
+  const searching = $derived(appState.neighborQuery.trim() !== '')
+
+  function onSearchKey(e: KeyboardEvent): void {
+    if (e.key === 'Escape') appState.neighborQuery = ''
+  }
 
   function isQuiet(n: Neighbor): boolean {
     return n.pendingCount > 0 && (!n.lastCommentAt || daysSince(n.lastCommentAt) > 30)
@@ -32,7 +39,7 @@
     try {
       const res = await api.neighbors.add(input)
       if (res.ok) {
-        message = { kind: 'ok', text: `${res.neighbor.nickname} 님을 명단에 적었어요. 지금 있는 글은 읽은 것으로 두고, 앞으로 올라오는 글부터 알려 드릴게요.` }
+        message = { kind: 'ok', text: `${res.neighbor.name} 님을 명단에 적었어요. 지금 있는 글은 읽은 것으로 두고, 앞으로 올라오는 글부터 알려 드릴게요.` }
         input = ''
         await appState.refresh()
       } else {
@@ -72,16 +79,35 @@
   </form>
 {/if}
 
+{#if appState.neighbors.length > 0}
+  <div class="search" role="search">
+    <input
+      type="search"
+      bind:value={appState.neighborQuery}
+      onkeydown={onSearchKey}
+      placeholder="이름, 닉네임, 블로그 ID, 메모로 찾기"
+      aria-label="이웃 명단 검색"
+    />
+    {#if searching}<span class="count" aria-live="polite">{appState.neighbors.length}명 중 {list.length}명</span>{/if}
+  </div>
+{/if}
+
 {#if list.length === 0}
-  <p class="empty">{quiet ? '이웃을 등록하면 오래 못 간 집을 여기서 챙겨 드릴게요.' : '아직 명단이 비어 있어요.'}</p>
+  <p class="empty">
+    {#if searching}
+      "{appState.neighborQuery.trim()}"에 맞는 이웃이 없어요.
+    {:else}
+      {quiet ? '이웃을 등록하면 오래 못 간 집을 여기서 챙겨 드릴게요.' : '아직 명단이 비어 있어요.'}
+    {/if}
+  </p>
 {:else}
   <ul>
     {#each list as n (n.id)}
       <li class:quiet={quiet && isQuiet(n)}>
         <div class="head">
           <div class="who">
-            <span class="nm">{n.honorific || n.nickname}</span>
-            <span class="id">{n.blogId}{#if n.failCount > 0}<em> 확인 실패 {n.failCount}회</em>{/if}</span>
+            <span class="nm">{n.honorific || n.name}</span>
+            <span class="id">{n.blogId}{#if n.blogTitle && n.blogTitle !== n.name}, {n.blogTitle}{/if}{#if n.failCount > 0}<em> 확인 실패 {n.failCount}회</em>{/if}</span>
             <span class="last">
               {formatLastComment(n.lastCommentAt)}{#if n.pendingCount > 0}, 들를 글 {n.pendingCount}편{/if}
             </span>
@@ -192,6 +218,11 @@
     font-size: 12px;
     color: var(--graphite-soft);
   }
+  .id {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .id em {
     font-style: normal;
     color: var(--margin);
@@ -230,6 +261,37 @@
   .confirm .danger {
     border-color: var(--margin);
     color: var(--margin);
+  }
+  .search {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+  }
+  .search input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 13px;
+    border: 1px solid #d6d3c6;
+    border-radius: 3px;
+    padding: 4px 8px;
+    background: #fff;
+  }
+  .search input:focus {
+    outline: none;
+    border-color: var(--pencil-y);
+    box-shadow: 0 0 0 2px rgba(243, 196, 64, 0.25);
+  }
+  .count {
+    flex: none;
+    font-size: 12px;
+    color: var(--graphite-soft);
   }
   .empty {
     padding: 20px 18px;

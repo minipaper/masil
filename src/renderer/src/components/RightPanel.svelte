@@ -55,7 +55,7 @@
 
     <section id="sec-memo" class="block">
       <div class="sh">
-        <h2>{neighbor ? `${neighbor.honorific || neighbor.nickname} 수첩` : '이웃 수첩'}</h2>
+        <h2>{neighbor ? `${neighbor.honorific || neighbor.name} 수첩` : '이웃 수첩'}</h2>
         {#if neighbor && !editing}<button type="button" onclick={() => (editing = true)}>고치기</button>{/if}
       </div>
       {#if !neighbor}
@@ -74,7 +74,7 @@
 
     <section id="sec-history" class="block">
       <div class="sh">
-        <h2>{neighbor ? `${neighbor.honorific || neighbor.nickname}께 남긴 댓글` : '지난 댓글'}</h2>
+        <h2>{neighbor ? `${neighbor.honorific || neighbor.name}께 남긴 댓글` : '지난 댓글'}</h2>
         {#if appState.history.length > 0}<small>{appState.history.length}개</small>{/if}
       </div>
       <History />

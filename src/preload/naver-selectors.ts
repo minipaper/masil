@@ -10,6 +10,9 @@ export const SEL = {
   captions: '.se-caption',
   places: '.se-map-title, .se-place-name',
   images: '.se-main-container img.se-image-resource, #postViewArea img',
+  /** 글쓴이 닉네임 (확인: 2026-11-17, PostView의 meta와 상단 닉네임) */
+  authorNickMeta: 'meta[property="naverblog:nickname"]',
+  authorNick: ['.blog_author .nick', '.nick'],
 
   /** 공감 버튼 (누르지 않는다. 사용자가 누르면 감지만) */
   likeButton: '.u_likeit_list_btn, .u_likeit_button',

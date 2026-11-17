@@ -15,6 +15,8 @@ export interface PostContent {
   /** 이미지 주소 (AI에 이미지 보내기 옵션용) */
   images: string[]
   liked: boolean
+  /** 글쓴이 네이버 닉네임 (글 화면의 meta에서 읽음) */
+  authorNick?: string
 }
 
 export const DEFAULT_TONES: ToneSpec[] = [

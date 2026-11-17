@@ -1,5 +1,6 @@
 import type { RssItem } from '@shared/rss'
 import type { StyleGuide } from '@shared/style'
+import { NAME_SQL, baseName } from '@shared/neighbor-name'
 import { nextStatus, type PostEvent } from '@shared/post-state'
 import type { Closeness, CommentRecord, DraftItem, Neighbor, NeighborPatch, Post, PostStatus, Speech } from '@shared/types'
 import type { DB } from './db'
@@ -13,6 +14,8 @@ interface NeighborRow {
   blog_id: string
   nickname: string
   blog_title: string | null
+  naver_nick: string | null
+  nickname_custom: number
   honorific: string
   speech: Speech
   closeness: Closeness
@@ -39,6 +42,9 @@ function toNeighbor(r: NeighborRow): Neighbor {
     blogId: r.blog_id,
     nickname: r.nickname,
     blogTitle: r.blog_title,
+    naverNick: r.naver_nick,
+    nicknameCustom: r.nickname_custom === 1,
+    name: baseName({ nickname: r.nickname, nicknameCustom: r.nickname_custom === 1, naverNick: r.naver_nick }),
     honorific: r.honorific,
     speech: r.speech,
     closeness: r.closeness,
@@ -52,7 +58,7 @@ function toNeighbor(r: NeighborRow): Neighbor {
 }
 
 export function listNeighbors(db: DB): Neighbor[] {
-  return (db.prepare(`${NEIGHBOR_SELECT} ORDER BY n.nickname COLLATE NOCASE`).all() as NeighborRow[]).map(toNeighbor)
+  return (db.prepare(`${NEIGHBOR_SELECT} ORDER BY ${NAME_SQL('n')} COLLATE NOCASE`).all() as NeighborRow[]).map(toNeighbor)
 }
 
 export function getNeighbor(db: DB, id: number): Neighbor | null {
@@ -79,7 +85,8 @@ export interface NeighborFetchInfo {
 export function listNeighborsForCheck(db: DB): NeighborFetchInfo[] {
   const rows = db
     .prepare(
-      `SELECT id, blog_id, nickname, honorific, last_attempt_at, fail_count, etag, last_modified FROM neighbors ORDER BY COALESCE(last_checked_at, '') ASC`
+      `SELECT id, blog_id, ${NAME_SQL('n')} AS nickname, honorific, last_attempt_at, fail_count, etag, last_modified
+       FROM neighbors n ORDER BY COALESCE(last_checked_at, '') ASC`
     )
     .all() as (Pick<NeighborRow, 'id' | 'blog_id' | 'nickname' | 'honorific' | 'last_attempt_at' | 'fail_count' | 'etag' | 'last_modified'>)[]
   return rows.map((r) => ({
@@ -104,7 +111,13 @@ export function insertNeighbor(db: DB, blogId: string, blogTitle: string): numbe
 export function updateNeighbor(db: DB, id: number, patch: NeighborPatch): void {
   const cols: string[] = []
   const vals: unknown[] = []
-  if (patch.nickname !== undefined) (cols.push('nickname = ?'), vals.push(patch.nickname.trim() || '이름 없음'))
+  if (patch.nickname !== undefined) {
+    // 지금 보이는 이름과 같으면 고친 게 아니다. 비우면 자동(닉네임 → 블로그 제목)으로 돌아간다.
+    const cur = getNeighbor(db, id)
+    const next = patch.nickname.trim()
+    if (!next) cols.push('nickname_custom = 0')
+    else if (cur && next !== cur.name) (cols.push('nickname = ?', 'nickname_custom = 1'), vals.push(next))
+  }
   if (patch.honorific !== undefined) (cols.push('honorific = ?'), vals.push(patch.honorific.trim()))
   if (patch.speech !== undefined) (cols.push('speech = ?'), vals.push(patch.speech === 'casual' ? 'casual' : 'polite'))
   if (patch.closeness !== undefined) (cols.push('closeness = ?'), vals.push(Math.min(3, Math.max(1, Math.round(patch.closeness)))))
@@ -156,7 +169,7 @@ interface PostRow {
 
 const POST_SELECT = `
   SELECT p.*, n.blog_id AS blog_id,
-    CASE WHEN n.honorific != '' THEN n.honorific ELSE n.nickname END AS neighbor_name
+    CASE WHEN n.honorific != '' THEN n.honorific ELSE ${NAME_SQL('n')} END AS neighbor_name
   FROM posts p JOIN neighbors n ON n.id = p.neighbor_id`
 
 function toPost(r: PostRow): Post {
@@ -523,4 +536,14 @@ export function saveManualGuide(db: DB, content: string): void {
       ).run(text, countConfirmedComments(db), now())
     }
   })()
+}
+
+/** 글을 열 때 읽은 네이버 닉네임을 저장한다. 바뀌었으면 true */
+export function setNaverNick(db: DB, blogId: string, nick: string): boolean {
+  const clean = nick.replace(/\s+/g, ' ').trim().slice(0, 40)
+  if (!clean) return false
+  const info = db
+    .prepare(`UPDATE neighbors SET naver_nick = ? WHERE blog_id = ? AND COALESCE(naver_nick, '') != ?`)
+    .run(clean, blogId, clean)
+  return info.changes > 0
 }

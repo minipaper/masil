@@ -10,7 +10,7 @@
   // 편집 시작 시점의 값을 복사해서 쓴다 (저장 전까지 원본은 그대로)
   // svelte-ignore state_referenced_locally
   let form = $state({
-    nickname: neighbor.nickname,
+    nickname: neighbor.name,
     honorific: neighbor.honorific,
     speech: neighbor.speech as Speech,
     closeness: neighbor.closeness as Closeness,
@@ -32,7 +32,7 @@
 <form class="memo" onsubmit={submit}>
   <label>
     <span>이름</span>
-    <input bind:value={form.nickname} maxlength="40" />
+    <input bind:value={form.nickname} maxlength="40" placeholder="비우면 네이버 닉네임이나 블로그 제목" />
   </label>
   <label>
     <span>호칭</span>

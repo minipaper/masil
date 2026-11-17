@@ -68,8 +68,17 @@ function extractPost(): PostContent | null {
       .map((t) => t.replace(/^#/, ''))
       .filter((t) => t && t !== '취소'),
     images,
-    liked: isLiked()
+    liked: isLiked(),
+    authorNick: readAuthorNick()
   }
+}
+
+function readAuthorNick(): string {
+  const meta = document.querySelector<HTMLMetaElement>(SEL.authorNickMeta)?.content ?? ''
+  const fromPage = first(SEL.authorNick)?.innerText ?? ''
+  const nick = norm(meta || fromPage)
+  // 템플릿 자리표시({=nickname}) 같은 값은 버린다
+  return /[{}]/.test(nick) ? '' : nick.slice(0, 40)
 }
 
 function findInput(): HTMLElement | null {

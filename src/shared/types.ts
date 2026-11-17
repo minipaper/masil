@@ -15,6 +15,12 @@ export interface Neighbor {
   /** 표시 이름. 기본값은 블로그 제목 */
   nickname: string
   blogTitle: string | null
+  /** 네이버 닉네임. 그 이웃의 글을 웹뷰로 열 때 읽는다 */
+  naverNick: string | null
+  /** nickname을 사용자가 직접 고쳤는지 */
+  nicknameCustom: boolean
+  /** 보여 줄 이름 (호칭 제외): 고친 이름 → 네이버 닉네임 → 블로그 제목 */
+  name: string
   /** 초안에서 부를 호칭 (예: "봄비님") */
   honorific: string
   speech: Speech

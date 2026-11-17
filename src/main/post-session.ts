@@ -54,7 +54,9 @@ export class PostSession {
       if (!fromNaver(e) || !post?.blogId || !post.logNo) return
       this.frame = e.senderFrame
       this.content = post
-      if (post.liked && repo.setPostLiked(db, post.blogId, post.logNo, true)) this.events.dataChanged()
+      const likedChanged = post.liked && repo.setPostLiked(db, post.blogId, post.logNo, true)
+      const nickChanged = !!post.authorNick && repo.setNaverNick(db, post.blogId, post.authorNick)
+      if (likedChanged || nickChanged) this.events.dataChanged()
       this.events.currentPost(this.currentPost())
       this.loadDrafts(post)
     })
@@ -202,7 +204,7 @@ export class PostSession {
     const n = repo.findNeighborByBlogId(this.db, post.blogId)
     return {
       post,
-      neighbor: n ? { honorific: n.honorific, nickname: n.nickname, speech: n.speech, closeness: n.closeness, memo: n.memo } : null,
+      neighbor: n ? { honorific: n.honorific, nickname: n.name, speech: n.speech, closeness: n.closeness, memo: n.memo } : null,
       styleGuide: repo.activeStyleGuide(this.db),
       recentFinals: repo.recentFinals(this.db, examples.recent, post.blogId),
       neighborFinals: repo.neighborFinals(this.db, post.blogId, examples.neighbor),
