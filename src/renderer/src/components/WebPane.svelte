@@ -81,6 +81,13 @@
       void appState.skipSelected()
     }
   }
+
+  /** 내 블로그로 가기. 블로그 ID를 아직 모르면 설정 창을 연다 */
+  function openMyBlog(): void {
+    const id = appState.settings?.myBlogId
+    if (id) void api.naver.open(id)
+    else appState.openSettings(true)
+  }
 </script>
 
 <svelte:window onkeydown={onKey} />
@@ -125,6 +132,12 @@
     {#if round && !appState.roundFinished}
       <button type="button" class="act quiet" onclick={() => appState.endRound()}>마실 그만</button>
     {/if}
+    <button
+      type="button"
+      class="act"
+      title={appState.settings?.myBlogId ? `내 블로그(${appState.settings.myBlogId})를 열어요` : '설정에서 내 블로그 ID를 먼저 정해 주세요'}
+      onclick={openMyBlog}>내 블로그</button
+    >
     {#if naver?.loggedIn}
       <span class="login">로그인됨</span>
     {:else}
@@ -153,7 +166,10 @@
           <p class="sub">댓글을 남기려면 처음 한 번 네이버에 로그인해 주세요. 비밀번호는 네이버 화면에 직접 입력하고, 마실은 저장하지 않아요.</p>
           <button type="button" class="primary" onclick={() => api.naver.nav('login')}>네이버 로그인</button>
         {:else}
-          <button type="button" class="ghost" onclick={() => api.naver.nav('home')}>블로그 홈 열기</button>
+          <div class="btns">
+            {#if appState.settings?.myBlogId}<button type="button" class="ghost" onclick={openMyBlog}>내 블로그 열기</button>{/if}
+            <button type="button" class="ghost" onclick={() => api.naver.nav('home')}>블로그 홈 열기</button>
+          </div>
         {/if}
       </div>
     {/if}
@@ -362,5 +378,10 @@
     padding: 4px 14px;
     border-radius: 3px;
     margin-top: 6px;
+  }
+  .btns {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
   }
 </style>
