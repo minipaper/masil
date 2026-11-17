@@ -54,6 +54,14 @@ describe('프롬프트 조립', () => {
     expect(bare).toContain('댓글을 달 글')
   })
 
+  it('명단에 없는 블로그는 글쓴이 닉네임으로 처음 인사한다', () => {
+    const stranger = buildUserPrompt({ ...ctx, neighbor: null, post: { ...ctx.post, authorNick: '햇살' } })
+    expect(stranger).toContain('글쓴이 정보')
+    expect(stranger).toContain('부를 호칭: 햇살님')
+    expect(stranger).toContain('처음 찾아온 사이')
+    expect(stranger).not.toContain('이웃 정보')
+  })
+
   it('본문은 3000자에서 자른다', () => {
     const long = buildUserPrompt({ ...ctx, post: { ...ctx.post, body: '가'.repeat(BODY_LIMIT + 500) } })
     expect(long).toContain('…(이하 생략)')

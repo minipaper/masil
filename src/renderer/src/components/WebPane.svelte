@@ -31,6 +31,37 @@
   const neighbor = $derived(naver?.visible ? appState.viewingNeighbor : null)
   const stats = $derived(appState.roundStats)
 
+  // 주소창: 평소엔 지금 주소를 보여 주고, 누르면 블로그 ID나 주소를 넣어 열 수 있다 (네이버 주소만)
+  let editing = $state(false)
+  let addr = $state('')
+  let note = $state<string | null>(null)
+  const shownUrl = $derived(naver?.visible ? naver.url.replace(/^https?:\/\//, '') : '')
+
+  function startEdit(e: FocusEvent): void {
+    editing = true
+    addr = shownUrl
+    note = null
+    ;(e.currentTarget as HTMLInputElement).select()
+  }
+
+  async function onAddrKey(e: KeyboardEvent): Promise<void> {
+    const el = e.currentTarget as HTMLInputElement
+    if (e.key === 'Escape') {
+      addr = shownUrl
+      el.blur()
+    } else if (e.key === 'Enter' && !e.isComposing) {
+      e.preventDefault()
+      const res = await api.naver.open(addr)
+      if (res.ok) el.blur()
+      else note = res.message
+    }
+  }
+
+  async function addBlog(): Promise<void> {
+    note = await appState.addCurrentBlog()
+    setTimeout(() => (note = null), 4000)
+  }
+
   function next(): void {
     if (round) void appState.advance()
     else void appState.openNextPending()
@@ -59,11 +90,26 @@
     <button type="button" aria-label="뒤로" disabled={!naver?.canGoBack} onclick={() => api.naver.nav('back')}>‹</button>
     <button type="button" aria-label="앞으로" disabled={!naver?.canGoForward} onclick={() => api.naver.nav('forward')}>›</button>
     <button type="button" aria-label="새로고침" disabled={!naver?.visible} onclick={() => api.naver.nav('reload')}>↻</button>
-    <div class="url" title={naver?.url}>{naver?.visible ? naver.url.replace(/^https?:\/\//, '') : '열린 글 없음'}</div>
+    <input
+      class="url"
+      title={naver?.url}
+      value={editing ? addr : shownUrl}
+      oninput={(e) => (addr = e.currentTarget.value)}
+      onfocus={startEdit}
+      onblur={() => ((editing = false), (note = null))}
+      onkeydown={onAddrKey}
+      placeholder="블로그 ID나 주소를 넣고 Enter"
+      aria-label="주소 (블로그 ID나 네이버 블로그 주소를 넣고 Enter)"
+      spellcheck="false"
+    />
+    {#if note}<span class="note" role="status" title={note}>{note}</span>{/if}
     {#if round && !appState.roundFinished}
       <span class="round" title="이번 마실에서 들른 글 / 시작할 때 남은 글">
         마실 중 <b>{stats?.visited ?? 0}</b>/{round.total}
       </span>
+    {/if}
+    {#if appState.strangerBlogId}
+      <button type="button" class="act" title="{appState.strangerBlogId} 블로그를 이웃 명단에 적어요" onclick={addBlog}>이웃 명단에 추가</button>
     {/if}
     {#if neighbor}
       <button type="button" class="act danger" title="{neighbor.blogId} 이웃을 명단에서 빼요" onclick={() => appState.removeCurrentNeighbor()}>
@@ -148,19 +194,37 @@
     cursor: default;
   }
   .url {
-    flex: 1;
-    min-width: 120px;
+    flex: 1 1 120px;
+    min-width: 90px;
     padding: 3px 10px;
     background: #fff;
     border: 1px solid #dcdacf;
     border-radius: 3px;
     color: #555;
+    font: inherit;
     font-family: system-ui, sans-serif;
+    font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .url:focus {
+    outline: none;
+    color: var(--graphite);
+    border-color: var(--pencil-y);
+    box-shadow: 0 0 0 2px rgba(243, 196, 64, 0.25);
+  }
+  .note {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 170px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--margin);
+  }
   .act {
+    flex: none;
     border: 1px solid #c9c6ba;
     background: var(--paper);
     border-radius: 3px;

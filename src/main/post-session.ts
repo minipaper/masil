@@ -113,6 +113,11 @@ export class PostSession {
     this.events.currentPost(null)
   }
 
+  /** 지금 열린 글에서 읽은 글쓴이 닉네임 (그 블로그 글이 열려 있을 때만) */
+  authorNickOf(blogId: string): string | null {
+    return this.content?.blogId === blogId ? this.content.authorNick?.trim() || null : null
+  }
+
   currentPost(): CurrentPost | null {
     const c = this.content
     if (!c) return null

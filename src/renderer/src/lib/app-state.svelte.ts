@@ -172,6 +172,24 @@ class AppState {
    * 지금 보고 있는 글의 이웃을 명단에서 뺀다. 확인 창을 먼저 띄운다.
    * 출석부의 그 이웃 글은 함께 지워지고, 내가 남긴 댓글 기록은 남는다.
    */
+  /** 웹뷰에 열린 글이 명단에 없는 블로그면 그 블로그 (내 블로그 제외) */
+  get strangerBlogId(): string | null {
+    const p = this.currentPost
+    if (!this.naver?.visible || !p || p.neighborId) return null
+    if (p.blogId === this.settings?.myBlogId) return null
+    return this.neighbors.some((n) => n.blogId === p.blogId) ? null : p.blogId
+  }
+
+  /** 지금 보는 블로그를 이웃 명단에 적는다. 결과 문장을 돌려준다 */
+  async addCurrentBlog(): Promise<string> {
+    const id = this.strangerBlogId
+    if (!id) return ''
+    const res = await api.neighbors.add(id)
+    await this.refresh()
+    this.currentPost = await api.drafts.current()
+    return res.ok ? `${res.neighbor.name} 님을 명단에 적었어요.` : res.message
+  }
+
   async removeCurrentNeighbor(): Promise<boolean> {
     const n = this.viewingNeighbor
     if (!n) return false

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { extractBuddies } from './buddy'
 import { baseName, matchesNeighbor, shownName } from './neighbor-name'
 import { isOptionRejected, requestVariants } from './ai-options'
+import { addressToUrl } from './blog-id'
 import { pickNextInRound, roundKey, summarizeRound } from './round'
 import { STYLE_GUIDE_EVERY, buildStylePrompt, diffLines, nextStyleAt, parseStyleGuide, styleGuideDue } from './style'
 import type { Post } from './types'
@@ -179,5 +180,22 @@ describe('AI 요청 옵션 조합', () => {
   it('400, 422, 501만 옵션 거절로 본다', () => {
     expect([400, 422, 501].every(isOptionRejected)).toBe(true)
     expect([401, 404, 429, 500, undefined].some(isOptionRejected)).toBe(false)
+  })
+})
+
+describe('주소창 입력', () => {
+  it('ID, 블로그 주소, 글 주소, 모바일 글 주소를 연다', () => {
+    expect(addressToUrl('springrain')).toBe('https://blog.naver.com/springrain')
+    expect(addressToUrl('blog.naver.com/springrain')).toBe('https://blog.naver.com/springrain')
+    expect(addressToUrl('https://m.blog.naver.com/springrain/223614208871')).toBe('https://blog.naver.com/springrain/223614208871')
+    expect(addressToUrl('https://blog.naver.com/PostView.naver?blogId=springrain&logNo=223614208871')).toBe(
+      'https://blog.naver.com/springrain/223614208871'
+    )
+  })
+  it('네이버의 다른 화면은 그대로, 네이버가 아니면 열지 않는다', () => {
+    expect(addressToUrl('section.blog.naver.com/BlogHome.naver')).toBe('https://section.blog.naver.com/BlogHome.naver')
+    expect(addressToUrl('https://example.com/springrain')).toBeNull()
+    expect(addressToUrl('evilnaver.com')).toBeNull()
+    expect(addressToUrl('  ')).toBeNull()
   })
 })

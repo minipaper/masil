@@ -16,6 +16,7 @@ export const IPC = {
   naverSetBounds: 'naver:set-bounds',
   naverSetHidden: 'naver:set-hidden',
   naverNav: 'naver:nav',
+  naverOpen: 'naver:open',
   naverState: 'naver:state',
   currentPost: 'post:current',
   draftsState: 'drafts:state',

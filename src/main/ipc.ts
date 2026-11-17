@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { parseBlogId } from '@shared/blog-id'
+import { addressToUrl, parseBlogId } from '@shared/blog-id'
 import { IPC, type NaverNav } from '@shared/ipc'
 import type { BrowserWindow } from 'electron'
 import type { AddNeighborResult, NeighborPatch, Rect, Settings } from '@shared/types'
@@ -50,6 +50,9 @@ export function registerIpc(ctx: Ctx): void {
     if (!blogId) return { ok: false, reason: 'invalid', message: '블로그 ID나 주소를 알아보지 못했어요.' }
     const res = await registerNeighbor(db, blogId)
     if (!res.ok) return { ok: false, reason: res.reason, message: REASON_TEXT[res.reason] }
+    // 그 블로그 글을 보고 있다면 이미 읽은 닉네임을 바로 쓴다
+    const nick = ctx.postSession()?.authorNickOf(blogId)
+    if (nick) repo.setNaverNick(db, blogId, nick)
     ctx.dataChanged()
     const neighbor = repo.getNeighbor(db, res.id)
     return neighbor ? { ok: true, neighbor } : { ok: false, reason: 'network', message: REASON_TEXT.network }
@@ -94,6 +97,12 @@ export function registerIpc(ctx: Ctx): void {
   ipcMain.on(IPC.naverSetBounds, (_e, rect: Rect) => ctx.naver()?.setBounds(rect))
   ipcMain.on(IPC.naverSetHidden, (_e, hidden: boolean) => ctx.naver()?.setHidden(Boolean(hidden)))
   ipcMain.on(IPC.naverNav, (_e, action: NaverNav) => ctx.naver()?.nav(action))
+  ipcMain.handle(IPC.naverOpen, (_e, input: string) => {
+    const url = addressToUrl(String(input ?? ''))
+    if (!url) return { ok: false, message: '네이버 블로그만 열 수 있어요.' }
+    ctx.naver()?.load(url)
+    return { ok: true, message: '' }
+  })
   ipcMain.handle(IPC.naverState, () => ctx.naver()?.state() ?? null)
 
   // ── 초안과 댓글 ──

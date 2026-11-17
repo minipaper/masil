@@ -36,6 +36,7 @@ const api: MasilApi = {
     setBounds: (rect) => ipcRenderer.send(IPC.naverSetBounds, rect),
     setHidden: (hidden) => ipcRenderer.send(IPC.naverSetHidden, hidden),
     nav: (action) => ipcRenderer.send(IPC.naverNav, action),
+    open: (input) => ipcRenderer.invoke(IPC.naverOpen, input),
     state: () => ipcRenderer.invoke(IPC.naverState),
     onState: (cb) => on(IPC.evNaverState, cb)
   },

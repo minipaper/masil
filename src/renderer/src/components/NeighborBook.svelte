@@ -113,6 +113,7 @@
             </span>
           </div>
           <div class="btns">
+            <button type="button" title="{n.blogId} 블로그를 가운데에 열어요" onclick={() => api.naver.open(n.blogId)}>블로그</button>
             <button type="button" onclick={() => (editingId = editingId === n.id ? null : n.id)}>수첩</button>
             <button type="button" onclick={() => (confirmDeleteId = n.id)}>지우기</button>
           </div>

@@ -49,6 +49,8 @@ export interface MasilApi {
     setBounds(rect: Rect): void
     setHidden(hidden: boolean): void
     nav(action: NaverNav): void
+    /** 블로그 ID나 네이버 주소를 웹뷰에 연다 (네이버 주소만) */
+    open(input: string): Promise<{ ok: boolean; message: string }>
     state(): Promise<NaverViewState | null>
     onState(cb: (s: NaverViewState) => void): Unsubscribe
   }

@@ -73,3 +73,25 @@ export function postUrl(blogId: string, logNo: string): string {
 export function rssUrl(blogId: string): string {
   return `https://rss.blog.naver.com/${blogId}.xml`
 }
+
+/**
+ * 웹뷰 주소창에 입력한 값을 열 주소로 바꾼다. 네이버 주소만 연다.
+ * "springrain" → 블로그 홈, 글 주소 → 그 글, 그 밖의 네이버 주소(블로그 홈 등) → 그대로. 못 알아보면 null.
+ */
+export function addressToUrl(input: string): string | null {
+  const raw = input.trim()
+  if (!raw) return null
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+  const post = parsePostRef(withScheme)
+  if (post) return postUrl(post.blogId, post.logNo)
+  const blogId = parseBlogId(raw)
+  if (blogId) return `https://blog.naver.com/${blogId}`
+  try {
+    const url = new URL(withScheme)
+    const host = url.hostname.toLowerCase()
+    if (host === 'naver.com' || host.endsWith('.naver.com')) return url.href.replace(/^http:/i, 'https:')
+  } catch {
+    // 주소가 아니다
+  }
+  return null
+}

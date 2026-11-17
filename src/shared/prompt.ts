@@ -115,6 +115,10 @@ export function buildUserPrompt(ctx: DraftContext): string {
     ]
     if (neighbor.memo.trim()) lines.push(`- 메모: ${neighbor.memo.trim()}`)
     parts.push(section('이웃 정보', lines.join('\n')))
+  } else if (post.authorNick?.trim()) {
+    // 명단에 없는 블로그: 처음 찾아온 사이로 쓴다
+    const lines = [`- 부를 호칭: ${post.authorNick.trim()}님`, `- 말투: ${SPEECH_TEXT.polite}`, '- 친밀도: 아직 이웃이 아니고 처음 찾아온 사이']
+    parts.push(section('글쓴이 정보', lines.join('\n')))
   }
 
   if (ctx.styleGuide?.trim()) parts.push(section('내 댓글 스타일 가이드', ctx.styleGuide))
