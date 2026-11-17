@@ -21,7 +21,19 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - name: 설치 파일 빌드와 업로드
-        run: npx electron-builder --win --publish always
+      # 빌드만 한다. electron-builder가 직접 올리면 파일을 동시에 올리다 릴리스 생성이 겹쳐 일부가 빠진다.
+      - name: 설치 파일 빌드
+        run: npx electron-builder --win --publish never
+      - name: 릴리스에 올리기
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd "release/$VERSION"
+          ls -la
+          test -f latest.yml
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "$VERSION" --generate-notes
+          # latest.yml은 electron-updater가 새 버전을 찾을 때 읽는다. 설치 파일과 함께 올린다.
+          gh release upload "$GITHUB_REF_NAME" "Masil-Setup-$VERSION.exe" "Masil-Setup-$VERSION.exe.blockmap" latest.yml --clobber
