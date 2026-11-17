@@ -127,6 +127,14 @@ export class PostSession {
     }
   }
 
+  /** 설정이 바뀌면, 설정이 없어 멈춰 있던 초안을 다시 판단한다 (글을 다시 열지 않아도 되게) */
+  onSettingsChanged(): void {
+    const post = this.content
+    const d = this.drafts
+    if (!post || !d || d.status === 'loading' || d.status === 'ready') return
+    if (d.needsSetup || d.status === 'idle') this.loadDrafts(post)
+  }
+
   draftsState(): DraftsState | null {
     return this.drafts
   }
@@ -143,11 +151,11 @@ export class PostSession {
       return
     }
     const settings = getSettings(this.db)
-    const ready = Boolean(settings.ai.baseUrl && settings.ai.model)
-    if (settings.ai.autoGenerate && ready) {
+    const missing = !settings.ai.baseUrl ? 'Base URL이 비어 있어요.' : !settings.ai.model ? '모델 이름이 비어 있어요.' : null
+    if (settings.ai.autoGenerate && !missing) {
       void this.generate()
     } else {
-      this.setDrafts({ blogId: post.blogId, logNo: post.logNo, status: 'idle', drafts: [], error: null, needsSetup: !ready })
+      this.setDrafts({ blogId: post.blogId, logNo: post.logNo, status: 'idle', drafts: [], error: missing, needsSetup: missing !== null })
     }
   }
 

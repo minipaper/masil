@@ -218,6 +218,7 @@ if (!app.requestSingleInstanceLock()) {
       openPost,
       onSettingsChanged: (s) => {
         checker?.reschedule()
+        postSession?.onSettingsChanged()
         applyLoginItem(s)
       },
       style,

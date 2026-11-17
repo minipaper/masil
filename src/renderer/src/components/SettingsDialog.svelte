@@ -1,6 +1,6 @@
 <script lang="ts">
   import { MIN_CHECK_INTERVAL_MINUTES } from '@shared/policy'
-  import type { Settings, UpdateStatus } from '@shared/types'
+  import type { AiTestResult, Settings, UpdateStatus } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
   import StyleGuideSection from './StyleGuideSection.svelte'
 
@@ -61,6 +61,8 @@
   let saving = $state(false)
   let testing = $state(false)
   let notice = $state<{ ok: boolean; text: string } | null>(null)
+  let testPrompt = $state('연결 확인이에요. 한 문장으로 짧게 인사해 주세요.')
+  let testResult = $state<AiTestResult | null>(null)
 
   const intervalTooShort = $derived(form.checkIntervalMinutes < MIN_CHECK_INTERVAL_MINUTES)
 
@@ -103,12 +105,14 @@
     }
   }
 
+  /** 지금 입력한 설정을 저장한 뒤 테스트 문장을 보낸다 */
   async function test(): Promise<void> {
     testing = true
     notice = null
+    testResult = null
     try {
       if (!(await persist())) return
-      notice = await api.ai.test().then((r) => ({ ok: r.ok, text: r.message }))
+      testResult = await api.ai.test(testPrompt)
     } finally {
       testing = false
     }
@@ -176,8 +180,20 @@
           <span>모델</span>
           <input bind:value={form.model} placeholder="서비스에서 쓰는 모델 이름 그대로" spellcheck="false" />
         </label>
-        <div class="row-end">
-          <button type="button" class="ghost" disabled={testing || saving} onclick={test}>{testing ? '확인 중' : '연결 확인'}</button>
+        <div class="test">
+          <p class="test-title">연결 확인</p>
+          <p class="hint">위 설정을 저장하고 이 문장을 모델에게 보내요. 답이 오면 제대로 연결된 거예요.</p>
+          <div class="test-row">
+            <input bind:value={testPrompt} aria-label="테스트 문장" />
+            <button type="button" class="primary" disabled={testing || saving} onclick={test}>{testing ? '기다리는 중' : '보내 보기'}</button>
+          </div>
+          {#if testResult}
+            <div class="test-result" class:fail={!testResult.ok} role="status">
+              <p class="tr-msg">{testResult.message}</p>
+              {#if testResult.reply}<p class="tr-reply">{testResult.reply}</p>{/if}
+              {#if testResult.detail}<p class="tr-detail">{testResult.detail}</p>{/if}
+            </div>
+          {/if}
         </div>
       </section>
 
@@ -430,6 +446,57 @@
     align-items: center;
     gap: 6px;
   }
+  .test {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--rule-soft);
+    border-radius: 3px;
+    background: #fff;
+  }
+  .test-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .test-row {
+    display: flex;
+    gap: 6px;
+  }
+  .test-row input {
+    flex: 1;
+  }
+  .test-result {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-left: 3px solid var(--cover);
+    background: var(--paper);
+    font-size: 13px;
+  }
+  .test-result.fail {
+    border-left-color: var(--margin);
+  }
+  .test-result p {
+    margin: 0;
+    line-height: 1.6;
+  }
+  .tr-msg {
+    color: var(--cover);
+    font-weight: 500;
+  }
+  .test-result.fail .tr-msg {
+    color: var(--margin);
+  }
+  .tr-reply {
+    margin-top: 4px !important;
+    font-family: var(--font-head);
+    color: var(--graphite);
+  }
+  .tr-detail {
+    margin-top: 4px !important;
+    font-size: 12px;
+    color: var(--graphite-soft);
+    word-break: break-all;
+  }
   .ver {
     font-size: 13px;
     margin-right: 4px;
@@ -470,10 +537,6 @@
     align-items: center;
     margin: 4px 0 0 26px;
     font-size: 13px;
-  }
-  .row-end {
-    display: flex;
-    justify-content: flex-end;
   }
   .ghost {
     background: var(--paper);

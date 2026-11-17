@@ -75,7 +75,7 @@
 {:else}
   {#if appState.drafts?.needsSetup}
     <p class="note">
-      초안을 쓰려면 AI 연결이 필요해요.
+      초안을 쓰려면 AI 연결이 필요해요.{#if appState.drafts.error} {appState.drafts.error}{/if}
       <button type="button" class="link" onclick={() => appState.openSettings(true)}>설정 열기</button>
     </p>
   {:else if status === 'idle'}

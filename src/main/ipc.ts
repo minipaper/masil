@@ -116,7 +116,9 @@ export function registerIpc(ctx: Ctx): void {
       return { ok: false, message: describeAiError(e), settings: getSettings(db) }
     }
   })
-  ipcMain.handle(IPC.aiTest, () => testConnection(getSettings(db).ai, getApiKey(db)))
+  ipcMain.handle(IPC.aiTest, (_e, prompt?: string) =>
+    testConnection(getSettings(db).ai, getApiKey(db), typeof prompt === 'string' ? prompt : undefined)
+  )
 
   // ── 문체 가이드 ──
   ipcMain.handle(IPC.styleState, () => ctx.style.state())

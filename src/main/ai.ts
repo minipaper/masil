@@ -2,7 +2,7 @@ import OpenAI from 'openai'
 import type { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { buildUserPrompt, findCliche, parseDrafts, systemPrompt, type Draft, type DraftContext } from '@shared/prompt'
 import { buildStylePrompt, parseStyleGuide, styleSystemPrompt } from '@shared/style'
-import type { AiSettings } from '@shared/types'
+import type { AiSettings, AiTestResult } from '@shared/types'
 
 /** 초안 품질 일관성을 위해 고정 (docs/DECISIONS.md "AI 초안") */
 export const TEMPERATURE = 0.4
@@ -17,19 +17,40 @@ function client(ai: AiSettings, apiKey: string | null): OpenAI {
   return new OpenAI({ baseURL: ai.baseUrl, apiKey: apiKey || 'no-key', timeout: TIMEOUT_MS, maxRetries: 1 })
 }
 
-async function complete(api: OpenAI, ai: AiSettings, messages: ChatCompletionMessageParam[]): Promise<string> {
-  const base = { model: ai.model, temperature: TEMPERATURE, messages }
-  try {
-    const res = await api.chat.completions.create({ ...base, response_format: { type: 'json_object' } })
-    return res.choices[0]?.message?.content ?? ''
-  } catch (e) {
-    // JSON 모드를 지원하지 않는 서버면 형식 지정 없이 한 번 더
-    if (e instanceof OpenAI.APIError && e.status === 400) {
-      const res = await api.chat.completions.create(base)
+/**
+ * 서버나 모델마다 받는 옵션이 달라서, 400(잘못된 요청)이면 옵션을 하나씩 빼며 다시 보낸다.
+ * - JSON 모드를 모르는 서버
+ * - temperature를 바꿀 수 없는 추론형 모델
+ */
+/** 서버·모델별로 통했던 옵션 단계를 기억해 매번 실패하는 요청을 다시 보내지 않는다 (앱 실행 중에만) */
+const workingStep = new Map<string, number>()
+
+async function complete(
+  api: OpenAI,
+  ai: AiSettings,
+  messages: ChatCompletionMessageParam[],
+  opts: { json?: boolean; temperature?: number } = {}
+): Promise<string> {
+  const json = opts.json ?? true
+  const temperature = opts.temperature ?? TEMPERATURE
+  const attempts = [
+    { temperature, ...(json ? { response_format: { type: 'json_object' as const } } : {}) },
+    { temperature },
+    {}
+  ].filter((a, i, arr) => i === 0 || JSON.stringify(a) !== JSON.stringify(arr[i - 1]))
+  const key = `${ai.baseUrl}|${ai.model}|${json}`
+  let lastError: unknown
+  for (let i = workingStep.get(key) ?? 0; i < attempts.length; i++) {
+    try {
+      const res = await api.chat.completions.create({ model: ai.model, messages, ...attempts[i] })
+      workingStep.set(key, i)
       return res.choices[0]?.message?.content ?? ''
+    } catch (e) {
+      lastError = e
+      if (!(e instanceof OpenAI.APIError && e.status === 400)) throw e
     }
-    throw e
   }
+  throw lastError
 }
 
 /**
@@ -84,20 +105,32 @@ export async function generateStyleGuide(
 }
 
 /** 설정 화면의 "연결 확인" */
-export async function testConnection(ai: AiSettings, apiKey: string | null): Promise<{ ok: boolean; message: string }> {
+export const DEFAULT_TEST_PROMPT = '연결 확인이에요. 한 문장으로 짧게 인사해 주세요.'
+
+/** 설정 화면의 "보내 보기": 테스트 문장을 보내고 모델의 답을 그대로 돌려준다 */
+export async function testConnection(ai: AiSettings, apiKey: string | null, prompt?: string): Promise<AiTestResult> {
+  const started = Date.now()
   try {
     const api = client(ai, apiKey)
-    const res = await api.chat.completions.create({
-      model: ai.model,
-      temperature: 0,
-      max_tokens: 5,
-      messages: [{ role: 'user', content: '확인용 메시지입니다. "네"라고만 답하세요.' }]
-    })
-    const text = res.choices[0]?.message?.content?.trim()
-    return { ok: true, message: `연결됐어요. 모델이 "${text?.slice(0, 20) || '(빈 응답)'}"라고 답했어요.` }
+    const text = (prompt ?? '').trim() || DEFAULT_TEST_PROMPT
+    const reply = (await complete(api, ai, [{ role: 'user', content: text.slice(0, 500) }], { json: false })).trim()
+    const ms = Date.now() - started
+    if (!reply) return { ok: false, message: '연결은 됐지만 모델이 빈 답을 보냈어요. 모델 이름을 확인해 주세요.', reply: '', ms, detail: null }
+    return { ok: true, message: `연결됐어요. ${ai.model} 모델이 ${(ms / 1000).toFixed(1)}초 만에 답했어요.`, reply: reply.slice(0, 400), ms, detail: null }
   } catch (e) {
-    return { ok: false, message: describeAiError(e) }
+    return { ok: false, message: describeAiError(e), reply: '', ms: Date.now() - started, detail: serverDetail(e) }
   }
+}
+
+/** 서버가 보낸 오류 문장 (키나 본문은 들어 있지 않다). 무엇이 틀렸는지 알 수 있게 그대로 보여 준다. */
+function serverDetail(e: unknown): string | null {
+  if (e instanceof OpenAI.APIError) {
+    const status = e.status ? `HTTP ${e.status}` : '연결 오류'
+    const msg = (e.message || '').replace(/sk-[A-Za-z0-9_-]{6,}/g, 'sk-…').slice(0, 300)
+    return `${status}: ${msg}`
+  }
+  if (e instanceof Error && !(e instanceof AiSetupError)) return e.message.slice(0, 300)
+  return null
 }
 
 export function describeAiError(e: unknown): string {

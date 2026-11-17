@@ -187,3 +187,14 @@ export type UpdateStatus =
   | { kind: 'error'; message: string }
   /** 개발 실행: 업데이트를 확인하지 않는다 */
   | { kind: 'dev' }
+
+/** 설정 화면 "보내 보기" 결과 */
+export interface AiTestResult {
+  ok: boolean
+  message: string
+  /** 모델의 답 */
+  reply: string
+  ms: number
+  /** 실패했을 때 서버가 보낸 오류 내용 */
+  detail: string | null
+}
