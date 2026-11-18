@@ -207,6 +207,15 @@ export interface AiTestResult {
   detail: string | null
 }
 
+/** 설정 화면 모델 목록 (서버의 GET /models) */
+export interface AiModelsResult {
+  ok: boolean
+  /** 모델 이름 (이름순) */
+  models: string[]
+  /** 실패했을 때 알릴 문장 */
+  message: string | null
+}
+
 // ───────── 답방 (docs/DECISIONS.md "답방") ─────────
 
 export interface VisitScanStatus {

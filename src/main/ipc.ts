@@ -10,7 +10,7 @@ import type { Updater } from './updater'
 import { buddyPageUrl, type NeighborImport } from './neighbor-import'
 import type { StyleService } from './style'
 import type { DB } from './db'
-import { describeAiError, testConnection } from './ai'
+import { describeAiError, listModels, testConnection } from './ai'
 import type { NaverView } from './naver-view'
 import type { PostSession } from './post-session'
 import * as repo from './repo'
@@ -127,6 +127,10 @@ export function registerIpc(ctx: Ctx): void {
       return { ok: false, message: describeAiError(e), settings: getSettings(db) }
     }
   })
+  // 저장 전 입력값으로 목록을 본다. 새로 입력한 키가 있으면 그 키를, 없으면 저장된 키를 쓴다 (키는 main 밖으로 나가지 않는다)
+  ipcMain.handle(IPC.aiModels, (_e, baseUrl: string, typedKey?: string) =>
+    listModels(String(baseUrl ?? ''), (typeof typedKey === 'string' && typedKey.trim()) || getApiKey(db))
+  )
   ipcMain.handle(IPC.aiTest, (_e, prompt?: string) =>
     testConnection(getSettings(db).ai, getApiKey(db), typeof prompt === 'string' ? prompt : undefined)
   )

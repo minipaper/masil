@@ -25,6 +25,7 @@ export const IPC = {
   commentsForBlog: 'comments:for-blog',
   aiSetKey: 'ai:set-key',
   aiTest: 'ai:test',
+  aiModels: 'ai:models',
   styleState: 'style:state',
   styleRefresh: 'style:refresh',
   styleApprove: 'style:approve',

@@ -6,6 +6,7 @@ import type {
   ImportProgress,
   CheckStatus,
   CommentRecord,
+  AiModelsResult,
   AiTestResult,
   CurrentPost,
   UpdateStatus,
@@ -75,6 +76,8 @@ export interface MasilApi {
     setKey(key: string | null): Promise<{ ok: boolean; message?: string; settings: Settings }>
     /** 테스트 문장을 보내고 모델의 답을 받는다 */
     test(prompt?: string): Promise<AiTestResult>
+    /** Base URL 서버가 가진 모델 이름. typedKey는 아직 저장하지 않은 새 키 */
+    models(baseUrl: string, typedKey?: string): Promise<AiModelsResult>
   }
   style: {
     state(): Promise<StyleState>

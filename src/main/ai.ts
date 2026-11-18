@@ -12,8 +12,8 @@ import {
   type ReplyContext
 } from '@shared/prompt'
 import { buildStylePrompt, parseStyleGuide, styleSystemPrompt } from '@shared/style'
-import type { AiSettings, AiTestResult } from '@shared/types'
-import { isOptionRejected, requestVariants } from '@shared/ai-options'
+import type { AiModelsResult, AiSettings, AiTestResult } from '@shared/types'
+import { isOptionRejected, modelChoices, requestVariants } from '@shared/ai-options'
 
 /** 초안 품질 일관성을 위해 고정 (docs/DECISIONS.md "AI 초안") */
 export const TEMPERATURE = 0.4
@@ -112,7 +112,6 @@ export async function generateStyleGuide(
 /** 설정 화면의 "연결 확인" */
 export const DEFAULT_TEST_PROMPT = '연결 확인이에요. 한 문장으로 짧게 인사해 주세요.'
 
-/** 설정 화면의 "보내 보기": 테스트 문장을 보내고 모델의 답을 그대로 돌려준다 */
 /** 내 글에 달린 댓글 하나에 답글 초안을 만든다 */
 export async function generateReplies(ai: AiSettings, apiKey: string | null, ctx: ReplyContext): Promise<Draft[]> {
   const api = client(ai, apiKey)
@@ -123,6 +122,23 @@ export async function generateReplies(ai: AiSettings, apiKey: string | null, ctx
   return parseDrafts(await complete(api, ai, messages), ctx.tones)
 }
 
+/** 설정 화면의 모델 선택칸: 서버가 가진 모델 이름을 받아 온다 (OpenAI 호환 GET /models, Ollama도 지원) */
+export async function listModels(baseUrl: string, apiKey: string | null): Promise<AiModelsResult> {
+  const url = baseUrl.trim()
+  if (!/^https?:\/\/\S+$/i.test(url)) return { ok: false, models: [], message: 'Base URL을 http:// 또는 https://로 시작하게 입력해 주세요.' }
+  try {
+    const api = new OpenAI({ baseURL: url, apiKey: apiKey || 'no-key', timeout: 10_000, maxRetries: 0 })
+    const ids: string[] = []
+    for await (const m of api.models.list()) ids.push(m.id)
+    const models = modelChoices(ids, '')
+    if (models.length === 0) return { ok: false, models, message: '서버에 받아 둔 모델이 없어요.' }
+    return { ok: true, models, message: null }
+  } catch (e) {
+    return { ok: false, models: [], message: `모델 목록을 가져오지 못했어요. ${describeAiError(e)}` }
+  }
+}
+
+/** 설정 화면의 "보내 보기": 테스트 문장을 보내고 모델의 답을 그대로 돌려준다 */
 export async function testConnection(ai: AiSettings, apiKey: string | null, prompt?: string): Promise<AiTestResult> {
   const started = Date.now()
   try {

@@ -54,7 +54,8 @@ const api: MasilApi = {
   },
   ai: {
     setKey: (key) => ipcRenderer.invoke(IPC.aiSetKey, key),
-    test: (prompt) => ipcRenderer.invoke(IPC.aiTest, prompt)
+    test: (prompt) => ipcRenderer.invoke(IPC.aiTest, prompt),
+    models: (baseUrl, typedKey) => ipcRenderer.invoke(IPC.aiModels, baseUrl, typedKey)
   },
   style: {
     state: () => ipcRenderer.invoke(IPC.styleState),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { extractBuddies } from './buddy'
 import { baseName, matchesNeighbor, shownName } from './neighbor-name'
-import { isOptionRejected, requestVariants } from './ai-options'
+import { isOptionRejected, modelChoices, requestVariants } from './ai-options'
 import { addressToUrl } from './blog-id'
 import { parseCommentInfo, pickReturnVisits, toIso } from './visitors'
 import { pickNextInRound, roundKey, summarizeRound } from './round'
@@ -238,5 +238,21 @@ describe('답방', () => {
       now
     )
     expect(list.map((r) => r.blogId)).toEqual(['rain'])
+  })
+})
+
+describe('modelChoices (설정 화면 모델 선택칸)', () => {
+  it('중복과 빈 이름을 빼고 이름순으로 정렬한다', () => {
+    expect(modelChoices(['qwen3.5:4b', 'gemma4:12b-mlx', ' ', 'gemma4:12b-mlx', 'exaone3.5:7.8b'], '')).toEqual([
+      'exaone3.5:7.8b',
+      'gemma4:12b-mlx',
+      'qwen3.5:4b'
+    ])
+  })
+  it('저장된 모델이 목록에 없으면 맨 앞에 남긴다', () => {
+    expect(modelChoices(['gemma4:e4b-it-q4_K_M'], 'gemma4:12b-mlx')).toEqual(['gemma4:12b-mlx', 'gemma4:e4b-it-q4_K_M'])
+  })
+  it('저장된 모델이 목록에 있으면 그대로 둔다', () => {
+    expect(modelChoices(['b', 'a'], 'b')).toEqual(['a', 'b'])
   })
 })

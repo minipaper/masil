@@ -1,6 +1,7 @@
 <script lang="ts">
   import { MIN_CHECK_INTERVAL_MINUTES } from '@shared/policy'
   import { REPLY_CHECK_POSTS } from '@shared/visitors'
+  import { modelChoices } from '@shared/ai-options'
   import type { AiTestResult, Settings, UpdateStatus } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
   import StyleGuideSection from './StyleGuideSection.svelte'
@@ -65,6 +66,49 @@
   let notice = $state<{ ok: boolean; text: string } | null>(null)
   let testPrompt = $state('연결 확인이에요. 한 문장으로 짧게 인사해 주세요.')
   let testResult = $state<AiTestResult | null>(null)
+
+  // 모델 선택칸: Base URL 서버가 가진 모델 이름을 받아 와 고르게 한다. 못 받으면 직접 입력
+  let models = $state<string[]>([])
+  let modelsLoading = $state(false)
+  let modelsNote = $state<{ ok: boolean; text: string } | null>(null)
+  let manualModel = $state(false)
+  let modelsReq = 0
+  const choices = $derived(modelChoices(models, form.model))
+  const showSelect = $derived(models.length > 0 && !manualModel)
+
+  async function loadModels(): Promise<void> {
+    const baseUrl = form.baseUrl.trim()
+    const req = ++modelsReq
+    if (!baseUrl) {
+      models = []
+      modelsNote = null
+      return
+    }
+    modelsLoading = true
+    try {
+      const res = await api.ai.models(baseUrl, apiKey.trim() || undefined)
+      if (req !== modelsReq) return
+      models = res.models
+      modelsNote = res.ok
+        ? { ok: true, text: `이 서버에 있는 모델 ${res.models.length}개를 불러왔어요.` }
+        : { ok: false, text: `${res.message ?? '모델 목록을 가져오지 못했어요.'} 모델 이름을 직접 입력해 주세요.` }
+    } catch (err) {
+      if (req !== modelsReq) return
+      models = []
+      modelsNote = { ok: false, text: `모델 목록을 가져오지 못했어요. ${errorText(err)}` }
+    } finally {
+      if (req === modelsReq) modelsLoading = false
+    }
+  }
+  // 열 때 저장된 주소로 한 번 불러온다
+  $effect(() => {
+    if (initial.ai.baseUrl) void loadModels()
+  })
+
+  function pickPreset(url: string): void {
+    form.baseUrl = url
+    void loadModels()
+  }
 
   const intervalTooShort = $derived(form.checkIntervalMinutes < MIN_CHECK_INTERVAL_MINUTES)
 
@@ -171,11 +215,11 @@
         <p class="hint">OpenAI 호환 API라면 어디든 쓸 수 있어요. API 키는 이 PC에 암호화해서 저장해요.</p>
         <label class="field">
           <span>Base URL</span>
-          <input bind:value={form.baseUrl} placeholder="https://api.openai.com/v1" spellcheck="false" />
+          <input bind:value={form.baseUrl} onchange={loadModels} placeholder="https://api.openai.com/v1" spellcheck="false" />
         </label>
         <div class="presets">
           {#each PRESETS as p (p.url)}
-            <button type="button" class="chip" class:on={form.baseUrl === p.url} onclick={() => (form.baseUrl = p.url)}>{p.label}</button>
+            <button type="button" class="chip" class:on={form.baseUrl === p.url} onclick={() => pickPreset(p.url)}>{p.label}</button>
           {/each}
         </div>
         <label class="field">
@@ -185,10 +229,36 @@
         {#if hasKey}
           <p class="hint">저장된 키가 있어요. <button type="button" class="link" onclick={removeKey}>키 지우기</button></p>
         {/if}
-        <label class="field">
-          <span>모델</span>
-          <input bind:value={form.model} placeholder="서비스에서 쓰는 모델 이름 그대로" spellcheck="false" />
-        </label>
+        <div class="field">
+          <span id="model-label">모델</span>
+          <div class="model-row">
+            {#if showSelect}
+              <select bind:value={form.model} aria-labelledby="model-label">
+                {#if !form.model}
+                  <option value="" disabled>모델을 고르세요</option>
+                {/if}
+                {#each choices as m (m)}
+                  <option value={m}>{m}</option>
+                {/each}
+              </select>
+            {:else}
+              <input bind:value={form.model} aria-labelledby="model-label" placeholder="서비스에서 쓰는 모델 이름 그대로" spellcheck="false" />
+            {/if}
+            <button type="button" class="ghost" disabled={modelsLoading || !form.baseUrl.trim()} onclick={loadModels}>
+              {modelsLoading ? '불러오는 중' : '목록 불러오기'}
+            </button>
+          </div>
+        </div>
+        {#if modelsNote}
+          <p class="hint model-note" class:warn={!modelsNote.ok}>
+            {modelsNote.text}
+            {#if models.length > 0}
+              <button type="button" class="link" onclick={() => (manualModel = !manualModel)}>
+                {manualModel ? '목록에서 고르기' : '직접 입력하기'}
+              </button>
+            {/if}
+          </p>
+        {/if}
         <div class="test">
           <p class="test-title">연결 확인</p>
           <p class="hint">위 설정을 저장하고 이 문장을 모델에게 보내요. 답이 오면 제대로 연결된 거예요.</p>
@@ -407,7 +477,8 @@
     font-size: 13px;
     color: var(--graphite-soft);
   }
-  input:not([type='checkbox']) {
+  input:not([type='checkbox']),
+  select {
     font: inherit;
     border: 1px solid #d6d3c6;
     border-radius: 3px;
@@ -524,6 +595,18 @@
   }
   .data-note.error {
     color: var(--margin);
+  }
+  .model-row {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+  }
+  .model-row input,
+  .model-row select {
+    flex: 1;
+  }
+  .model-note {
+    margin: -2px 0 6px 90px;
   }
   .presets {
     display: flex;

@@ -28,3 +28,13 @@ export function requestVariants(json: boolean, temperature: number): RequestOpti
 
 /** 옵션을 모른다는 뜻의 응답이면 옵션을 줄여 다시 보낸다: 400 잘못된 요청, 422 검증 실패, 501 지원 안 함 */
 export const isOptionRejected = (status: number | undefined): boolean => status === 400 || status === 422 || status === 501
+
+/**
+ * 설정 화면 모델 선택칸의 항목: 서버가 알려 준 모델 이름을 중복 없이 이름순으로.
+ * 지금 저장된 모델이 목록에 없어도(서버에서 지웠거나 다른 서버 이름) 맨 앞에 남겨 선택이 사라지지 않게 한다.
+ */
+export function modelChoices(ids: string[], current: string): string[] {
+  const list = [...new Set(ids.map((s) => s.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  const cur = current.trim()
+  return cur && !list.includes(cur) ? [cur, ...list] : list
+}
