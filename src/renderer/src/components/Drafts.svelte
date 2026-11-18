@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatElapsed, progressText, SLOW_READING_MS } from '@shared/progress'
   import type { DraftItem } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
 
@@ -27,6 +28,17 @@
   const hasPost = $derived(appState.currentPost !== null)
   const toneCount = $derived(appState.settings?.ai.tones.length ?? 2)
   const countWord = $derived(['한', '두', '세'][toneCount - 1] ?? String(toneCount))
+
+  // 쓰는 동안 경과 시간이 1초마다 오르게 한다
+  const progress = $derived(status === 'loading' ? (appState.drafts?.progress ?? null) : null)
+  let now = $state(Date.now())
+  $effect(() => {
+    if (!progress) return
+    now = Date.now()
+    const timer = setInterval(() => (now = Date.now()), 1000)
+    return () => clearInterval(timer)
+  })
+  const elapsedMs = $derived(status === 'ready' ? (appState.drafts?.elapsedMs ?? null) : null)
 
   function textOf(d: DraftItem): string {
     return edits[d.id] ?? d.text
@@ -87,7 +99,19 @@
   {/if}
 
   {#if status === 'loading'}
-    <p class="note busy" aria-live="polite">본문을 읽고 초안을 쓰는 중이에요…</p>
+    {#if progress}
+      <p class="note busy">{progressText(progress, now)}</p>
+      {#if progress.phase === 'reading' && now - progress.startedAt >= SLOW_READING_MS}
+        <p class="note slow">처음엔 모델을 불러오느라 더 걸릴 수 있어요.</p>
+      {/if}
+      <!-- 화면 읽기 프로그램에는 1초마다가 아니라 단계가 바뀔 때만 알린다 -->
+      <span class="sr-only" aria-live="polite">{progress.phase === 'reading' ? '본문을 읽는 중' : progress.phase === 'retrying' ? '다시 쓰는 중' : `초안 ${progress.current}번 쓰는 중`}</span>
+    {:else}
+      <p class="note busy" aria-live="polite">초안을 쓰는 중이에요…</p>
+    {/if}
+  {/if}
+  {#if elapsedMs !== null}
+    <p class="note took">{formatElapsed(elapsedMs)} 걸렸어요.</p>
   {/if}
   {#if status === 'error' && appState.drafts?.error}
     <p class="note error" role="alert">
@@ -133,6 +157,20 @@
   }
   .note.busy {
     color: var(--pen-blue);
+    font-variant-numeric: tabular-nums;
+  }
+  .note.slow,
+  .note.took {
+    line-height: 1.6;
+    font-size: 12px;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
   .note.error {
     color: var(--margin);

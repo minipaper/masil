@@ -38,7 +38,7 @@ async function complete(
   api: OpenAI,
   ai: AiSettings,
   messages: ChatCompletionMessageParam[],
-  opts: { json?: boolean; temperature?: number } = {}
+  opts: { json?: boolean; temperature?: number; onText?: (soFar: string) => void } = {}
 ): Promise<string> {
   const json = opts.json ?? true
   const temperature = opts.temperature ?? TEMPERATURE
@@ -47,6 +47,20 @@ async function complete(
   let lastError: unknown
   for (let i = workingStep.get(key) ?? 0; i < attempts.length; i++) {
     try {
+      if (opts.onText) {
+        // 진행을 알려야 하면 스트리밍으로 받는다. 옵션 거절은 첫 응답에서 오므로 아래 catch가 그대로 처리한다
+        const stream = await api.chat.completions.create({ model: ai.model, messages, ...attempts[i], stream: true })
+        workingStep.set(key, i)
+        let text = ''
+        for await (const chunk of stream) {
+          const piece = chunk.choices[0]?.delta?.content
+          if (piece) {
+            text += piece
+            opts.onText(text)
+          }
+        }
+        return text
+      }
       const res = await api.chat.completions.create({ model: ai.model, messages, ...attempts[i] })
       workingStep.set(key, i)
       return res.choices[0]?.message?.content ?? ''
@@ -58,15 +72,20 @@ async function complete(
   throw lastError
 }
 
+/** 초안 쓰기의 실제 단계: 첫 글자를 기다리는 중이면 soFar가 빈 문자열 */
+export type DraftStep = { phase: 'first' | 'retry'; soFar: string }
+
 /**
  * 초안을 만든다. 상투적 표현이 섞여 나오면 한 번만 다시 요청한다.
  * imageDataUrls는 sendImages 옵션이 켜져 있을 때만 넘어온다.
+ * onStep을 주면 응답을 스트리밍으로 받으며 단계를 알린다.
  */
 export async function generateDrafts(
   ai: AiSettings,
   apiKey: string | null,
   ctx: DraftContext,
-  imageDataUrls: string[] = []
+  imageDataUrls: string[] = [],
+  onStep?: (s: DraftStep) => void
 ): Promise<Draft[]> {
   const api = client(ai, apiKey)
   const userText = buildUserPrompt(ctx)
@@ -79,15 +98,18 @@ export async function generateDrafts(
     { role: 'user', content: userContent }
   ]
 
-  let drafts = parseDrafts(await complete(api, ai, messages), ctx.tones)
+  const stepper = (phase: DraftStep['phase']) => (onStep ? (soFar: string) => onStep({ phase, soFar }) : undefined)
+  onStep?.({ phase: 'first', soFar: '' })
+  let drafts = parseDrafts(await complete(api, ai, messages, { onText: stepper('first') }), ctx.tones)
   const cliche = drafts.map((d) => findCliche(d.text)).find(Boolean)
   if (cliche) {
     messages.push(
       { role: 'assistant', content: JSON.stringify({ drafts }) },
       { role: 'user', content: `"${cliche}" 같은 상투적 표현이 들어갔어요. 본문의 구체적인 내용을 넣어 같은 형식으로 다시 써 주세요.` }
     )
+    onStep?.({ phase: 'retry', soFar: '' })
     try {
-      drafts = parseDrafts(await complete(api, ai, messages), ctx.tones)
+      drafts = parseDrafts(await complete(api, ai, messages, { onText: stepper('retry') }), ctx.tones)
     } catch {
       // 다시 쓰기에 실패하면 첫 결과를 그대로 쓴다
     }

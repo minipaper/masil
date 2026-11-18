@@ -3,7 +3,8 @@ import { NAVER_FRAME, FILL_MESSAGE, type CommentsReport, type FillResult, type S
 import { parsePostRef } from '@shared/blog-id'
 import { NAVER_PARTITION } from '@shared/policy'
 import { REPLY_TONES, type DraftContext, type PostContent } from '@shared/prompt'
-import type { CurrentPost, DraftsState, RepliesState, ReplyItem } from '@shared/types'
+import { currentDraft } from '@shared/progress'
+import type { CurrentPost, DraftProgress, DraftsState, RepliesState, ReplyItem } from '@shared/types'
 import { AiSetupError, describeAiError, generateDrafts, generateReplies } from './ai'
 import type { DB } from './db'
 import * as repo from './repo'
@@ -317,14 +318,33 @@ export class PostSession {
     if (this.generating.has(key)) return
     this.generating.add(key)
     const base = { blogId: post.blogId, logNo: post.logNo }
-    this.setDrafts({ ...base, status: 'loading', drafts: this.drafts?.drafts ?? [], error: null, needsSetup: false })
+    const startedAt = Date.now()
+    const settings = getSettings(this.db)
+    const total = settings.ai.tones.length
+    let progress: DraftProgress = { phase: 'reading', startedAt, current: 1, total }
+    const showProgress = (): void => {
+      if (this.isCurrent(key)) this.setDrafts({ ...base, status: 'loading', drafts: this.drafts?.drafts ?? [], error: null, needsSetup: false, progress })
+    }
+    showProgress()
     try {
-      const settings = getSettings(this.db)
       const ctx = this.buildContext(post, settings.ai.tones, settings.ai.examples)
       const images = settings.ai.sendImages ? await loadImages(post.images) : []
-      const drafts = await generateDrafts(settings.ai, getApiKey(this.db), ctx, images)
+      const drafts = await generateDrafts(settings.ai, getApiKey(this.db), ctx, images, (step) => {
+        // 스트리밍 조각마다 오므로, 단계나 초안 번호가 바뀔 때만 화면에 보낸다
+        const next: DraftProgress = {
+          phase: step.phase === 'retry' ? 'retrying' : step.soFar ? 'writing' : 'reading',
+          startedAt,
+          current: currentDraft(step.soFar, total),
+          total
+        }
+        if (next.phase !== progress.phase || next.current !== progress.current) {
+          progress = next
+          showProgress()
+        }
+      })
       const items = repo.saveDraftBatch(this.db, post.blogId, post.logNo, settings.ai.model, drafts)
-      if (this.isCurrent(key)) this.setDrafts({ ...base, status: 'ready', drafts: items, error: null, needsSetup: false })
+      if (this.isCurrent(key))
+        this.setDrafts({ ...base, status: 'ready', drafts: items, error: null, needsSetup: false, elapsedMs: Date.now() - startedAt })
     } catch (e) {
       if (this.isCurrent(key)) {
         this.setDrafts({

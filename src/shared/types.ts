@@ -121,6 +121,24 @@ export interface DraftsState {
   error: string | null
   /** 설정이 덜 되어 생성하지 못함 */
   needsSetup: boolean
+  /** 쓰는 중일 때의 실제 단계 (status가 loading일 때만) */
+  progress?: DraftProgress | null
+  /** 방금 쓴 초안에 걸린 시간. 저장해 둔 초안을 다시 열면 없음 */
+  elapsedMs?: number | null
+}
+
+/**
+ * 초안을 쓰는 단계 (응답을 스트리밍으로 받아 실제 진행을 안다)
+ * - reading: 요청을 보내고 첫 글자를 기다리는 중 (모델이 본문을 읽는 시간, 처음엔 모델 불러오기 포함)
+ * - writing: 글자가 오는 중. current는 지금 쓰는 초안 번호(1부터)
+ * - retrying: 상투적 표현이 걸려 다시 쓰는 중
+ */
+export interface DraftProgress {
+  phase: 'reading' | 'writing' | 'retrying'
+  /** 생성을 시작한 시각 (epoch ms) */
+  startedAt: number
+  current: number
+  total: number
 }
 
 export interface CommentRecord {
