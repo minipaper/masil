@@ -2,6 +2,7 @@
   import { MIN_CHECK_INTERVAL_MINUTES } from '@shared/policy'
   import { REPLY_CHECK_POSTS } from '@shared/visitors'
   import { modelChoices } from '@shared/ai-options'
+  import { MAX_TONES, nextTone } from '@shared/prompt'
   import type { AiTestResult, Settings, UpdateStatus } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
   import StyleGuideSection from './StyleGuideSection.svelte'
@@ -291,15 +292,19 @@
           켜 두면 글마다 이미지를 최대 4장까지 보내고, 꺼 두면 이미지는 보내지 않아요.
         </p>
 
-        <h4>톤 세 가지</h4>
-        <p class="hint">초안은 이 순서대로 1, 2, 3번이 돼요. 설명은 AI에게 그대로 전해져요.</p>
+        <h4>톤</h4>
+        <p class="hint">톤마다 초안을 하나씩, 이 순서대로 써요. 설명은 AI에게 그대로 전해져요. 톤이 적을수록 초안이 빨리 나와요.</p>
         {#each form.tones as tone, i (i)}
           <div class="tone">
             <span class="tn" aria-hidden="true">{i + 1}</span>
             <input bind:value={tone.name} aria-label="{i + 1}번 톤 이름" />
             <input bind:value={tone.description} aria-label="{i + 1}번 톤 설명" placeholder="이 톤으로 어떻게 쓸지" />
+            <button type="button" class="ghost" disabled={form.tones.length <= 1} onclick={() => form.tones.splice(i, 1)} aria-label="{i + 1}번 톤 빼기">빼기</button>
           </div>
         {/each}
+        {#if form.tones.length < MAX_TONES}
+          <button type="button" class="link tone-add" onclick={() => form.tones.push(nextTone(form.tones))}>톤 추가</button>
+        {/if}
 
         <h4>프롬프트에 넣을 예시</h4>
         <div class="nums">
@@ -508,10 +513,13 @@
   }
   .tone {
     display: grid;
-    grid-template-columns: 20px 130px 1fr;
+    grid-template-columns: 20px 130px 1fr auto;
     gap: 6px;
     align-items: center;
     margin: 4px 0;
+  }
+  .tone-add {
+    margin: 2px 0 0 26px;
   }
   .tn {
     font-family: var(--font-hand);

@@ -25,6 +25,8 @@
   const drafts = $derived(appState.drafts?.drafts ?? [])
   const status = $derived(appState.drafts?.status ?? 'idle')
   const hasPost = $derived(appState.currentPost !== null)
+  const toneCount = $derived(appState.settings?.ai.tones.length ?? 2)
+  const countWord = $derived(['한', '두', '세'][toneCount - 1] ?? String(toneCount))
 
   function textOf(d: DraftItem): string {
     return edits[d.id] ?? d.text
@@ -71,7 +73,7 @@
 <svelte:window onkeydown={onKey} />
 
 {#if !hasPost}
-  <p class="note">글을 열면 초안 세 개를 써 둘게요.</p>
+  <p class="note">글을 열면 초안 {countWord} 개를 써 둘게요.</p>
 {:else}
   {#if appState.drafts?.needsSetup}
     <p class="note">
@@ -80,7 +82,7 @@
     </p>
   {:else if status === 'idle'}
     <p class="note">
-      <button type="button" class="link" onclick={() => api.drafts.generate()}>초안 쓰기</button>를 누르면 세 가지 톤으로 써 둘게요.
+      <button type="button" class="link" onclick={() => api.drafts.generate()}>초안 쓰기</button>를 누르면 {countWord} 가지 톤으로 써 둘게요.
     </p>
   {/if}
 

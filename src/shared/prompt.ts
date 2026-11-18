@@ -19,11 +19,21 @@ export interface PostContent {
   authorNick?: string
 }
 
-export const DEFAULT_TONES: ToneSpec[] = [
+/** 설정에서 고를 수 있는 톤 (docs/DECISIONS.md "AI 초안"). 톤이 적을수록 초안이 빨리 나온다 */
+export const TONE_PRESETS: ToneSpec[] = [
   { name: '다정한 공감', description: '따뜻하게 맞장구치며 글쓴이의 마음에 공감한다. 2~3문장.' },
   { name: '짧고 가볍게', description: '한두 문장으로 가볍고 산뜻하게.' },
   { name: '질문으로 잇기', description: '본문 내용에 대해 궁금한 점을 하나 물어 대화를 이어 간다.' }
 ]
+export const MAX_TONES = 3
+/** 기본은 두 톤. "질문으로 잇기"는 설정의 "톤 추가"로 되살린다 (2026-11-18) */
+export const DEFAULT_TONES: ToneSpec[] = TONE_PRESETS.slice(0, 2)
+
+/** "톤 추가"로 넣을 톤: 아직 안 쓰는 프리셋, 다 쓰고 있으면 빈 톤 */
+export function nextTone(tones: ToneSpec[]): ToneSpec {
+  const used = new Set(tones.map((t) => t.name.trim()))
+  return { ...(TONE_PRESETS.find((t) => !used.has(t.name)) ?? { name: '', description: '' }) }
+}
 
 export interface DraftContext {
   post: PostContent

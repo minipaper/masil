@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   BODY_LIMIT,
   DEFAULT_TONES,
+  MAX_TONES,
+  TONE_PRESETS,
+  nextTone,
   buildReplyPrompt,
   buildUserPrompt,
   REPLY_TONES,
@@ -31,7 +34,7 @@ const ctx: DraftContext = {
   recentFinals: ['바질 페스토 색이 진짜 진하네요 ㅎㅎ'],
   neighborFinals: [{ postTitle: '귤 따기 체험 후기', text: '노지 귤이 이렇게 새콤한 줄 몰랐네요.' }],
   pairs: [{ draft: '정말 멋진 풍경이네요!', final: '억새가 저렇게 키가 큰 줄 몰랐어요 ㅎㅎ' }],
-  tones: DEFAULT_TONES
+  tones: TONE_PRESETS
 }
 
 describe('프롬프트 조립', () => {
@@ -92,27 +95,27 @@ describe('응답 해석', () => {
         { tone: '질문으로 잇기', text: '손지오름은 해 질 녘이 제일 예쁜가요?' }
       ]
     })
-    expect(parseDrafts(raw, DEFAULT_TONES)).toHaveLength(3)
+    expect(parseDrafts(raw, TONE_PRESETS)).toHaveLength(3)
   })
 
   it('코드 펜스와 잡담 사이의 JSON, 문자열 속 중괄호도 처리', () => {
     const raw = '물론이죠!\n```json\n{"drafts":[{"tone":"다정한 공감","text":"괄호 {이런} 것도 괜찮아요"}]}\n```\n끝'
-    expect(parseDrafts(raw, DEFAULT_TONES)).toEqual([{ tone: '다정한 공감', text: '괄호 {이런} 것도 괜찮아요' }])
+    expect(parseDrafts(raw, TONE_PRESETS)).toEqual([{ tone: '다정한 공감', text: '괄호 {이런} 것도 괜찮아요' }])
   })
 
   it('톤 이름이 다르면 순서대로 맞춘다', () => {
     const raw = '{"drafts":[{"tone":"warm","text":"a"},{"tone":"short","text":"b"}]}'
-    expect(parseDrafts(raw, DEFAULT_TONES).map((d) => d.tone)).toEqual(['다정한 공감', '짧고 가볍게'])
+    expect(parseDrafts(raw, TONE_PRESETS).map((d) => d.tone)).toEqual(['다정한 공감', '짧고 가볍게'])
   })
 
   it('빈 초안은 버리고, 남는 게 없으면 에러', () => {
-    expect(() => parseDrafts('{"drafts":[{"tone":"x","text":"  "}]}', DEFAULT_TONES)).toThrow()
-    expect(() => parseDrafts('JSON 없음', DEFAULT_TONES)).toThrow()
+    expect(() => parseDrafts('{"drafts":[{"tone":"x","text":"  "}]}', TONE_PRESETS)).toThrow()
+    expect(() => parseDrafts('JSON 없음', TONE_PRESETS)).toThrow()
   })
 
   it('톤 수보다 많으면 자른다', () => {
     const raw = JSON.stringify({ drafts: Array.from({ length: 5 }, (_, i) => ({ tone: '', text: `t${i}` })) })
-    expect(parseDrafts(raw, DEFAULT_TONES)).toHaveLength(3)
+    expect(parseDrafts(raw, TONE_PRESETS)).toHaveLength(3)
   })
 })
 
@@ -142,5 +145,24 @@ describe('답글 프롬프트', () => {
     expect(p).toContain('다랑쉬오름 몇 시간')
     expect(p).toContain('문장 끝에 ㅎㅎ')
     expect(replySystemPrompt(2)).toContain('정확히 2개')
+  })
+})
+
+describe('톤 개수 (설정의 빼기/톤 추가)', () => {
+  it('기본은 "질문으로 잇기"를 뺀 두 톤', () => {
+    expect(DEFAULT_TONES.map((t) => t.name)).toEqual(['다정한 공감', '짧고 가볍게'])
+    expect(TONE_PRESETS).toHaveLength(MAX_TONES)
+  })
+  it('톤 추가는 아직 안 쓰는 프리셋부터 넣는다', () => {
+    expect(nextTone(DEFAULT_TONES).name).toBe('질문으로 잇기')
+    expect(nextTone([TONE_PRESETS[2]]).name).toBe('다정한 공감')
+  })
+  it('프리셋을 다 쓰고 있으면 빈 톤을 넣는다', () => {
+    expect(nextTone([{ name: '다정한 공감', description: '' }, { name: '짧고 가볍게', description: '' }, { name: '질문으로 잇기', description: '' }])).toEqual({ name: '', description: '' })
+  })
+  it('넣은 톤은 프리셋과 따로 고칠 수 있다 (복사본)', () => {
+    const t = nextTone([])
+    t.name = '바꿈'
+    expect(TONE_PRESETS[0].name).toBe('다정한 공감')
   })
 })

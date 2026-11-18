@@ -2,7 +2,7 @@ import { REPLY_CHECK_POSTS } from '@shared/visitors'
 import { parseBlogId } from '@shared/blog-id'
 import { safeStorage } from 'electron'
 import { DEFAULT_CHECK_INTERVAL_MINUTES, clampCheckInterval } from '@shared/policy'
-import { DEFAULT_TONES } from '@shared/prompt'
+import { DEFAULT_TONES, MAX_TONES, TONE_PRESETS } from '@shared/prompt'
 import type { AiSettings, Settings } from '@shared/types'
 import type { DB } from './db'
 import { readSetting, writeSetting } from './repo'
@@ -52,8 +52,8 @@ function normalize(s: StoredSettings): StoredSettings {
       ...ai,
       baseUrl: String(ai.baseUrl ?? '').trim().replace(/\/+$/, ''),
       model: String(ai.model ?? '').trim(),
-      tones: tones.slice(0, 3).map((t, i) => ({
-        name: String(t.name ?? '').trim() || DEFAULT_TONES[i]?.name || `톤 ${i + 1}`,
+      tones: tones.slice(0, MAX_TONES).map((t, i) => ({
+        name: String(t.name ?? '').trim() || TONE_PRESETS[i]?.name || `톤 ${i + 1}`,
         description: String(t.description ?? '').trim()
       })),
       examples: {
