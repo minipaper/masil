@@ -1,8 +1,16 @@
 <script lang="ts">
   import { formatClock } from '@shared/format'
+  import type { UpdateStatus } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
 
   const platform = window.masil.platform
+
+  // 업데이트는 main이 알아서 확인하고 받는다. 받는 중이거나 받아 두었을 때만 여기에 알린다
+  let update = $state<UpdateStatus>({ kind: 'idle' })
+  $effect(() => {
+    void window.masil.app.info().then((i) => (update = i.update))
+    return window.masil.app.onUpdate((s) => (update = s))
+  })
 
   const statusText = $derived.by(() => {
     const c = appState.check
@@ -24,6 +32,13 @@
     {statusText}
     {#if appState.check.lastError && !appState.check.running}<em>{appState.check.lastError}</em>{/if}
   </span>
+  {#if update.kind === 'downloading'}
+    <span class="update">새 버전 {update.version} 받는 중</span>
+  {:else if update.kind === 'ready'}
+    <button class="tb update-ready" type="button" title="다시 시작하면 바로 적용돼요. 그냥 두면 마실을 종료할 때 설치돼요." onclick={() => window.masil.app.restartToUpdate()}>
+      새 버전 {update.version} · 다시 시작
+    </button>
+  {/if}
   <button class="tb" type="button" disabled={appState.check.running} onclick={() => window.masil.check.now()}>
     지금 확인
   </button>
@@ -71,6 +86,15 @@
     font-style: normal;
     color: #ffd3c9;
     margin-left: 8px;
+  }
+  .update {
+    font-size: 12.5px;
+    opacity: 0.9;
+  }
+  .update-ready {
+    background: var(--paper) !important;
+    color: var(--cover) !important;
+    font-weight: 600;
   }
   .tb {
     -webkit-app-region: no-drag;

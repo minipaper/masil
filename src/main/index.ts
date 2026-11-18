@@ -45,6 +45,7 @@ function showWindow(): void {
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
   mainWindow.focus()
+  updater?.checkIfStale()
 }
 
 function createMainWindow(startHidden: boolean): BrowserWindow {

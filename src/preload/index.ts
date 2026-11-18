@@ -96,6 +96,7 @@ const api: MasilApi = {
   app: {
     info: () => ipcRenderer.invoke(IPC.appInfo),
     checkUpdate: () => ipcRenderer.invoke(IPC.appCheckUpdate),
+    restartToUpdate: () => ipcRenderer.invoke(IPC.appRestartUpdate),
     onUpdate: (cb) => on(IPC.evUpdate, cb)
   },
   onDataChanged: (cb) => on(IPC.evDataChanged, cb),

@@ -128,6 +128,8 @@ export interface MasilApi {
   app: {
     info(): Promise<{ version: string; update: UpdateStatus }>
     checkUpdate(): Promise<UpdateStatus>
+    /** 받아 둔 새 버전으로 다시 시작 */
+    restartToUpdate(): Promise<void>
     onUpdate(cb: (s: UpdateStatus) => void): Unsubscribe
   }
   onDataChanged(cb: () => void): Unsubscribe

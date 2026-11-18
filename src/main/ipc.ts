@@ -178,4 +178,5 @@ export function registerIpc(ctx: Ctx): void {
   // ── 버전, 업데이트 ──
   ipcMain.handle(IPC.appInfo, () => ({ version: app.getVersion(), update: ctx.updater.getStatus() }))
   ipcMain.handle(IPC.appCheckUpdate, () => ctx.updater.check())
+  ipcMain.handle(IPC.appRestartUpdate, () => ctx.updater.restartNow())
 }

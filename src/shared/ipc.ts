@@ -48,6 +48,7 @@ export const IPC = {
   dataImport: 'data:import',
   appInfo: 'app:info',
   appCheckUpdate: 'app:check-update',
+  appRestartUpdate: 'app:restart-update',
 
   // main → renderer (send)
   evCheckStatus: 'ev:check-status',

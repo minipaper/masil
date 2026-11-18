@@ -2,9 +2,11 @@ import { app, dialog, type BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import type { UpdateStatus } from '@shared/types'
 
-/** 앱을 켤 때와 6시간마다 확인한다 (docs/DECISIONS.md "배포") */
+/** 앱을 켤 때, 6시간마다, 트레이에서 창을 다시 열 때 확인한다 (docs/DECISIONS.md "배포") */
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000
 const FIRST_CHECK_DELAY_MS = 15_000
+/** 창을 다시 열 때는 마지막 확인에서 이만큼 지났을 때만 확인한다 */
+const RECHECK_ON_SHOW_MS = 30 * 60 * 1000
 
 /**
  * GitHub Releases에서 업데이트를 받는다. 받기는 백그라운드에서 하고,
@@ -14,6 +16,7 @@ export class Updater {
   private status: UpdateStatus = { kind: 'idle' }
   private asked = false
   private timer: NodeJS.Timeout | null = null
+  private lastCheckAt = 0
 
   constructor(
     private readonly window: () => BrowserWindow | null,
@@ -48,6 +51,19 @@ export class Updater {
     if (this.timer) clearInterval(this.timer)
   }
 
+  /** 트레이에서 창을 다시 열 때: 최근에 확인했으면 넘어간다 */
+  checkIfStale(): void {
+    if (!app.isPackaged || this.lastCheckAt === 0) return // 켤 때 확인은 start()가 한다
+    if (Date.now() - this.lastCheckAt >= RECHECK_ON_SHOW_MS) void this.check()
+  }
+
+  /** 받아 둔 새 버전으로 다시 시작 (상단 바 버튼) */
+  restartNow(): void {
+    if (this.status.kind !== 'ready') return
+    this.beforeRestart()
+    autoUpdater.quitAndInstall()
+  }
+
   getStatus(): UpdateStatus {
     return this.status
   }
@@ -55,6 +71,7 @@ export class Updater {
   async check(): Promise<UpdateStatus> {
     if (!app.isPackaged) return this.status
     if (this.status.kind === 'checking' || this.status.kind === 'downloading' || this.status.kind === 'ready') return this.status
+    this.lastCheckAt = Date.now()
     try {
       await autoUpdater.checkForUpdates()
     } catch {
@@ -82,9 +99,6 @@ export class Updater {
     }
     const win = this.window()
     const res = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts)
-    if (res.response === 0) {
-      this.beforeRestart()
-      autoUpdater.quitAndInstall()
-    }
+    if (res.response === 0) this.restartNow()
   }
 }
