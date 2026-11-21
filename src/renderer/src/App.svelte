@@ -67,7 +67,7 @@
 
   const tabs: { id: LeftTab; label: () => string }[] = [
     { id: 'today', label: () => '오늘 새 글' },
-    { id: 'visits', label: () => (appState.returnVisits.length > 0 ? `답방 ${appState.returnVisits.length}` : '답방') },
+    { id: 'visits', label: () => (appState.pendingVisitCount > 0 ? `답방 ${appState.pendingVisitCount}` : '답방') },
     { id: 'neighbors', label: () => `이웃 명단 ${appState.neighbors.length}` },
     { id: 'quiet', label: () => '오래 못 간 집' }
   ]

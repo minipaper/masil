@@ -219,14 +219,18 @@ describe('답방', () => {
   const now = new Date('2026-11-20T00:00:00Z')
   const v = (blogId: string, at: string, logNo = '1') => ({ commentNo: at, logNo, blogId, nick: blogId + '닉', at, text: '', postTitle: '내 글 ' + logNo })
 
-  it('내 글에 댓글 단 뒤로 내가 댓글을 안 남긴 사람만, 최근 순으로', () => {
+  it('답방한 사람도 빼지 않고 "답방 완료"로, 아직인 사람을 먼저 최근 순으로', () => {
     const list = pickReturnVisits(
-      [v('rain', '2026-11-18T00:00:00.000Z'), v('sun', '2026-11-19T00:00:00.000Z', '2'), v('rain', '2026-11-17T00:00:00.000Z'), v('wind', '2026-11-18T00:00:00.000Z')],
-      [{ blogId: 'wind', at: '2026-11-18T05:00:00.000Z' }],
+      [v('rain', '2026-11-18T00:00:00.000Z'), v('sun', '2026-11-19T00:00:00.000Z', '2'), v('rain', '2026-11-17T00:00:00.000Z'), v('wind', '2026-11-20T00:00:00.000Z')],
+      [{ blogId: 'wind', at: '2026-11-20T05:00:00.000Z' }],
       'me',
       now
     )
-    expect(list.map((r) => r.blogId)).toEqual(['sun', 'rain'])
+    expect(list.map((r) => [r.blogId, r.visitedAt])).toEqual([
+      ['sun', null],
+      ['rain', null],
+      ['wind', '2026-11-20T05:00:00.000Z']
+    ])
     expect(list[1]).toMatchObject({ count: 2, lastAt: '2026-11-18T00:00:00.000Z' })
   })
 
@@ -237,7 +241,7 @@ describe('답방', () => {
       'me',
       now
     )
-    expect(list.map((r) => r.blogId)).toEqual(['rain'])
+    expect(list.map((r) => [r.blogId, r.visitedAt])).toEqual([['rain', null]])
   })
 })
 

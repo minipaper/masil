@@ -257,6 +257,8 @@ export interface ReturnVisitItem {
   logNo: string
   postTitle: string
   count: number
+  /** 답방 완료한 시각 (그 사람의 최근 댓글 뒤로 내가 그 블로그에 댓글을 남김). 아직이면 null */
+  visitedAt: string | null
   /** 이웃 명단에 있으면 그 이웃 */
   neighborId: number | null
   name: string

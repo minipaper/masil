@@ -66,14 +66,19 @@
 
 {#if appState.returnVisits.length === 0}
   <p class="empty">
-    {#if s?.lastAt}지금은 답방할 곳이 없어요. 모두 다녀왔거나, 최근 30일 안에 내 글에 달린 댓글이 없어요.{:else}아직 찾아본 적이 없어요.{/if}
+    {#if s?.lastAt}최근 30일 안에 내 글에 다른 분이 단 댓글이 없어요.{:else}아직 찾아본 적이 없어요.{/if}
   </p>
 {:else}
   <ul>
     {#each appState.returnVisits as v (v.blogId)}
-      <li>
+      <li class:visited={v.visitedAt !== null}>
         <div class="who">
-          <span class="nm">{v.name}{#if v.count > 1}<span class="cnt">댓글 {v.count}개</span>{/if}</span>
+          <span class="nm"
+            >{v.name}{#if v.count > 1}<span class="cnt">댓글 {v.count}개</span>{/if}{#if v.visitedAt}<span
+                class="done"
+                title="{formatPostTime(v.visitedAt)}에 그 블로그에 댓글을 남겼어요">답방 완료</span
+              >{/if}</span
+          >
           <span class="sub">{formatPostTime(v.lastAt)} 「{v.postTitle || '내 글'}」에 댓글</span>
           <span class="sub id">{v.blogId}{#if !v.neighborId}, 이웃 명단에 없음{/if}</span>
         </div>
@@ -86,7 +91,7 @@
       </li>
     {/each}
   </ul>
-  <p class="foot">그 블로그에 댓글을 남기면 이 목록에서 빠져요.</p>
+  <p class="foot">그 블로그에 댓글을 남기면 "답방 완료"로 바뀌고 아래로 내려가요. 그분이 또 댓글을 달면 다시 위로 올라와요.</p>
 {/if}
 
 <style>
@@ -172,6 +177,22 @@
   .nm {
     display: block;
     font-weight: 600;
+  }
+  li.visited .nm,
+  li.visited .sub {
+    color: var(--graphite-soft);
+  }
+  .done {
+    margin-left: 6px;
+    padding: 0 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--pen-blue);
+    border: 1px solid var(--pen-blue);
+    border-radius: 3px;
+    line-height: 16px;
+    display: inline-block;
+    transform: rotate(-3deg);
   }
   .cnt {
     margin-left: 6px;

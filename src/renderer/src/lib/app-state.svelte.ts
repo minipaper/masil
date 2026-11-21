@@ -81,8 +81,9 @@ class AppState {
     const id = this.currentPost?.neighborId ?? null
     return id == null ? null : (this.neighbors.find((n) => n.id === id) ?? null)
   })
-  /** 답방할 집의 블로그 ID */
-  returnVisitIds = $derived(new Set(this.returnVisits.map((r) => r.blogId)))
+  /** 아직 답방하지 않은 집의 블로그 ID (도장, 출석부 정렬, 마실 순서에 쓴다) */
+  returnVisitIds = $derived(new Set(this.returnVisits.filter((r) => r.visitedAt === null).map((r) => r.blogId)))
+  pendingVisitCount = $derived(this.returnVisits.filter((r) => r.visitedAt === null).length)
   /** 웹뷰에 열린 글이 내 글인지 (오른쪽에 답글 초안을 보여 준다) */
   isMyPost = $derived(!!this.currentPost && !!this.settings?.myBlogId && this.currentPost.blogId === this.settings.myBlogId)
   historyBlogId = $derived(this.currentPost?.blogId ?? this.selectedNeighbor?.blogId ?? null)

@@ -67,15 +67,17 @@ export interface ReturnVisit {
   /** 그 댓글이 달린 내 글 */
   logNo: string
   postTitle: string
-  /** 아직 답방하지 않은 댓글 수 */
+  /** 최근 RETURN_VISIT_DAYS일 안에 내 글에 단 댓글 수 */
   count: number
+  /** 그 사람의 가장 최근 댓글 뒤로 내가 그 블로그에 댓글을 남긴 시각 (답방 완료). 아직이면 null */
+  visitedAt: string | null
 }
 
 /**
- * 답방할 집을 고른다.
- * - 최근 RETURN_VISIT_DAYS일 안에 내 글에 댓글을 단 사람
- * - 그 댓글 뒤로 내가 그 사람 블로그에 댓글을 남기지 않았으면 (남겼으면 답방한 것)
- * 최근에 댓글 단 순서로.
+ * 답방 목록을 만든다.
+ * - 최근 RETURN_VISIT_DAYS일 안에 내 글에 댓글을 단 사람은 모두 넣는다.
+ * - 그 사람의 가장 최근 댓글 뒤로 내가 그 블로그에 댓글을 남겼으면 "답방 완료"(visitedAt). 목록에서 빼지 않는다 (2026-11-21).
+ * 답방할 집(아직)을 먼저, 그 안에서는 최근에 댓글 단 순서로.
  */
 export function pickReturnVisits(
   visitors: (VisitorComment & { postTitle: string })[],
@@ -93,15 +95,17 @@ export function pickReturnVisits(
   const byBlog = new Map<string, ReturnVisit>()
   for (const v of visitors) {
     if (!v.blogId || v.blogId === myBlogId || v.at < since) continue
-    const mine = lastMine.get(v.blogId)
-    if (mine && mine >= v.at) continue
     const cur = byBlog.get(v.blogId)
     if (!cur) {
-      byBlog.set(v.blogId, { blogId: v.blogId, nick: v.nick, lastAt: v.at, logNo: v.logNo, postTitle: v.postTitle, count: 1 })
+      byBlog.set(v.blogId, { blogId: v.blogId, nick: v.nick, lastAt: v.at, logNo: v.logNo, postTitle: v.postTitle, count: 1, visitedAt: null })
     } else {
       cur.count++
       if (v.at > cur.lastAt) Object.assign(cur, { lastAt: v.at, nick: v.nick || cur.nick, logNo: v.logNo, postTitle: v.postTitle })
     }
   }
-  return [...byBlog.values()].sort((a, b) => b.lastAt.localeCompare(a.lastAt))
+  for (const r of byBlog.values()) {
+    const mine = lastMine.get(r.blogId)
+    r.visitedAt = mine && mine >= r.lastAt ? mine : null
+  }
+  return [...byBlog.values()].sort((a, b) => Number(a.visitedAt !== null) - Number(b.visitedAt !== null) || b.lastAt.localeCompare(a.lastAt))
 }
