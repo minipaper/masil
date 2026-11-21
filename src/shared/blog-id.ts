@@ -70,6 +70,11 @@ export function postUrl(blogId: string, logNo: string): string {
   return `https://blog.naver.com/${blogId}/${logNo}`
 }
 
+/** 모바일 댓글 화면. 댓글 목록이 펼쳐진 채로 뜬다 ("답방 갈 곳 찾아보기"가 읽는다) */
+export function mobileCommentsUrl(blogId: string, logNo: string): string {
+  return `https://m.blog.naver.com/PostView.naver?blogId=${encodeURIComponent(blogId)}&logNo=${logNo}&modal=comment`
+}
+
 export function rssUrl(blogId: string): string {
   return `https://rss.blog.naver.com/${blogId}.xml`
 }

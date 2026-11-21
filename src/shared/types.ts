@@ -246,6 +246,8 @@ export interface VisitScanStatus {
   lastAt: string | null
   /** 안내나 오류 (예: 내 블로그에 글이 없어요) */
   message: string | null
+  /** 글을 읽지 못했거나 댓글을 하나도 못 알아봤을 때의 진단 (JSON). "진단 정보 복사"로 보낸다 */
+  diag?: string | null
 }
 
 export interface ReturnVisitItem {

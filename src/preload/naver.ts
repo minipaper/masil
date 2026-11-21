@@ -7,7 +7,7 @@
  *  - 입력칸 채우기까지만 한다.
  *  - 등록·공감 클릭은 capture 리스너로 감지만 하고 기본 동작을 막지 않는다.
  *  - 예외로 누를 수 있는 버튼은 둘뿐이고, 사용자가 앱의 버튼을 눌렀을 때만 누른다.
- *    · 접힌 댓글 영역을 펼치는 토글(#Comi{logNo}): "채우기" 또는 "답방 갈 곳 찾아보기"를 눌렀을 때
+ *    · 접힌 댓글 영역을 펼치는 토글(#Comi{logNo}): "채우기"를 눌렀을 때 ("답방 갈 곳 찾아보기"는 모바일 댓글 화면을 읽어 아무것도 누르지 않는다)
  *    · 댓글의 "답글" 버튼(답글 입력칸 열기): 그 댓글의 답글 초안에서 "채우기"를 눌렀을 때
  */
 import { ipcRenderer } from 'electron'
@@ -18,7 +18,8 @@ import {
   type FillRequest,
   type FillResult,
   type ReplyFillRequest,
-  type ScanCommentsRequest
+  type ScanCommentsRequest,
+  type ScanDiag
 } from '@shared/naver-frame'
 import { blogHomeId } from '@shared/buddy'
 import { parseCommentInfo, toIso, type VisitorComment } from '@shared/visitors'
@@ -27,6 +28,9 @@ import { putText } from './fill-text'
 import { SEL, first } from './naver-selectors'
 
 const isPostView = /\/PostView\.naver$/i.test(location.pathname) && location.hostname === 'blog.naver.com'
+/** "답방 갈 곳 찾아보기"가 여는 모바일 댓글 화면. 읽기만 한다 */
+const isMobileComments =
+  /\/PostView\.naver$/i.test(location.pathname) && location.hostname === 'm.blog.naver.com' && new URLSearchParams(location.search).get('modal') === 'comment'
 
 const params = new URLSearchParams(location.search)
 const blogId = (params.get('blogId') ?? '').toLowerCase()
@@ -138,16 +142,45 @@ async function fillReply(commentNo: string, text: string): Promise<FillResult['o
   return putText(find, text, { blocked: loggedOut })
 }
 
-/** 지금 화면에 보이는 원댓글을 읽는다 (내 댓글, 지운 댓글, 답글은 뺀다) */
-function readComments(): VisitorComment[] {
+/** 프로필 링크의 모양만 남긴다 (진단용, ID는 가린다) */
+function hrefShape(href: string): string {
+  try {
+    const u = new URL(href, location.href)
+    const path = u.pathname
+      .split('/')
+      .map((seg, i) => (i === 0 || /\.naver$|\.nhn$/i.test(seg) ? seg : '{id}'))
+      .join('/')
+    const keys = [...u.searchParams.keys()].join('&')
+    return `${u.hostname}${path}${keys ? `?${keys}` : ''}`.slice(0, 80)
+  } catch {
+    return href ? 'bad-url' : 'none'
+  }
+}
+
+/** 지금 화면에 보이는 원댓글을 읽는다 (내 댓글, 지운 댓글, 답글은 뺀다). diag가 있으면 뺀 이유를 센다 */
+function readComments(diag?: ScanDiag): VisitorComment[] {
   const out: VisitorComment[] = []
+  const skip = (why: string): void => {
+    if (diag) diag.skipped[why] = (diag.skipped[why] ?? 0) + 1
+  }
   for (const li of document.querySelectorAll<HTMLElement>(SEL.commentItem)) {
     const info = parseCommentInfo(li.getAttribute('data-info'))
-    if (!info || info.mine || info.deleted || info.replyLevel > 1) continue
+    if (!info) {
+      skip(li.hasAttribute('data-info') ? 'info-unreadable' : 'no-info')
+      continue
+    }
+    if (info.mine) skip('mine')
+    else if (info.deleted) skip('deleted')
+    else if (info.replyLevel > 1) skip('reply')
+    if (info.mine || info.deleted || info.replyLevel > 1) continue
     const href = li.querySelector<HTMLAnchorElement>(SEL.commentProfile)?.getAttribute('href') ?? ''
     const visitor = blogHomeId(href)
     const at = toIso(info.regTime)
-    if (!visitor || !at) continue
+    if (!visitor || !at) {
+      skip(!visitor ? 'no-blog-link' : 'bad-time')
+      if (diag && !visitor && diag.profileShapes.length < 3) diag.profileShapes.push(hrefShape(href))
+      continue
+    }
     out.push({
       commentNo: info.commentNo,
       logNo,
@@ -164,15 +197,15 @@ function postTitle(): string {
   return norm(first(SEL.postTitle)?.innerText ?? '').slice(0, 200)
 }
 
-function report(requestId: string | null, state: CommentsReport['state']): void {
-  const msg: CommentsReport = {
-    requestId,
-    logNo,
-    title: postTitle(),
-    state,
-    comments: state === 'comments' ? readComments() : [],
-    total: commentCount()
+function report(requestId: string | null, state: CommentsReport['state'], diag?: ScanDiag): void {
+  const comments = state === 'comments' ? readComments(diag) : []
+  if (diag) {
+    diag.ready = document.readyState
+    diag.list = document.querySelector(SEL.commentList) !== null
+    diag.items = document.querySelectorAll(SEL.commentItem).length
+    diag.read = comments.length
   }
+  const msg: CommentsReport = { requestId, logNo, title: postTitle(), state, comments, total: commentCount(), diag }
   ipcRenderer.send(NAVER_FRAME.comments, msg)
 }
 
@@ -183,34 +216,43 @@ function commentCount(): number | null {
 }
 
 /**
- * "답방 갈 곳 찾아보기": 댓글을 읽어 보낸다. open이면 접힌 댓글 영역의 토글만 누른다 (허용 버튼).
- * 글 본문이 먼저 뜨고 댓글 영역은 나중에 그려지므로, 토글이나 목록이 보이고 댓글이 채워질 때까지 기다린 뒤에 답한다.
- * 너무 일찍 답하면 댓글이 있는 글도 "없음"으로 끝난다 (2026-11-21 버그).
+ * "답방 갈 곳 찾아보기": 모바일 댓글 화면(m.blog.naver.com/PostView.naver?…&modal=comment)에서 댓글을 읽어 보낸다.
+ * 이 화면은 댓글 목록이 처음부터 펼쳐져 있어서 아무것도 누르지 않는다.
+ * PC 글 화면의 "댓글 N" 토글은 펼치는 데 몇 초씩 걸리고, 다시 누르면 닫혀 버려 믿을 수 없었다 (2026-11-21).
  */
 async function scanComments(req: ScanCommentsRequest): Promise<void> {
-  await waitFor(() => document.querySelector(SEL.commentList) ?? document.querySelector(SEL.commentToggle(logNo)), 10_000, 100)
-  if (!document.querySelector(SEL.commentList)) {
-    const toggle = document.querySelector<HTMLElement>(SEL.commentToggle(logNo))
-    if (!toggle) return report(req.requestId, document.querySelector(SEL.cbox) ? 'comments' : 'none')
-    const count = commentCount()
-    if (count === 0) return report(req.requestId, 'comments')
-    // 지난번과 댓글 수가 같으면 펼치지 않는다 (네이버에 댓글을 다시 불러오지 않아 빠르다)
-    if (count !== null && count === req.known) return report(req.requestId, 'unchanged')
-    if (!req.open) return report(req.requestId, 'closed')
-    // 네이버 댓글 스크립트가 준비되기 전에 누르면 아무 일도 없다. 문서가 다 뜬 뒤에 누르고,
-    // 그래도 목록이 안 생기면 한 번만 더 누른다 (같은 허용 버튼)
-    await waitFor(() => (document.readyState === 'complete' ? true : null), 8000, 100)
-    const list = (): Element | null => document.querySelector(SEL.commentList)
-    toggle.click()
-    if (!(await waitFor(list, 4000, 100))) {
-      document.querySelector<HTMLElement>(SEL.commentToggle(logNo))?.click()
-      if (!(await waitFor(list, 6000, 100))) return report(req.requestId, 'none')
-    }
+  const started = Date.now()
+  const diag: ScanDiag = {
+    stage: 'start',
+    ready: document.readyState,
+    loggedIn: false,
+    list: false,
+    items: 0,
+    read: 0,
+    skipped: {},
+    profileShapes: [],
+    ms: 0
   }
-  // 목록 틀이 먼저 생기고 댓글은 나중에 한꺼번에 채워진다
-  const expected = commentCount() ?? 0
-  await waitFor(() => document.querySelector(SEL.commentItem), expected > 0 ? 8000 : 1500, 100)
-  report(req.requestId, 'comments')
+  const send = (state: CommentsReport['state'], stage: ScanDiag['stage']): void => {
+    diag.stage = stage
+    diag.ms = Date.now() - started
+    diag.loggedIn = !document.querySelector(SEL.commentLoggedOut)
+    report(req.requestId, state, diag)
+  }
+  // 목록 틀이 생기고, 댓글이 있으면 댓글이 채워질 때까지
+  const list = await waitFor(() => document.querySelector(SEL.commentList), 20_000, 100)
+  if (!list) return send(document.querySelector(SEL.cbox) ? 'comments' : 'none', 'no-list')
+  diag.stage = 'list'
+  await waitFor(() => document.querySelector(SEL.commentItem), 3000, 100)
+  // 댓글이 한꺼번에 채워지지 않을 때를 대비해 개수가 잠깐 그대로인지 본다
+  let last = -1
+  await waitFor(() => {
+    const n = document.querySelectorAll(SEL.commentItem).length
+    if (n === last) return true
+    last = n
+    return null
+  }, 3000, 300)
+  send('comments', 'read')
 }
 
 /** 내 글: 사용자가 댓글 영역을 펼치거나 목록이 바뀌면 다시 읽어 보낸다 (누르는 것 없음) */
@@ -294,14 +336,6 @@ if (isPostView && blogId && logNo) {
       .then((outcome) => ipcRenderer.send(NAVER_FRAME.fillResult, { requestId: req.requestId, outcome } satisfies FillResult))
   })
 
-  // main은 글이 뜰 때까지 같은 요청을 몇 번 보낸다. 한 번만 답한다.
-  const answered = new Set<string>()
-  ipcRenderer.on(NAVER_FRAME.scanComments, (_e, req: ScanCommentsRequest) => {
-    if (req.logNo !== logNo || answered.has(req.requestId)) return
-    answered.add(req.requestId)
-    void scanComments(req).catch(() => report(req.requestId, 'none'))
-  })
-
   ipcRenderer.on(NAVER_FRAME.watchComments, (_e, req: { logNo: string }) => {
     if (req.logNo === logNo) watchComments()
   })
@@ -325,5 +359,15 @@ if (/(^|\.)blog\.naver\.com$/i.test(location.hostname)) {
       if (links.length >= 2000) break
     }
     ipcRenderer.send(NAVER_FRAME.buddies, { requestId: req.requestId, url: location.href, inList: area !== null, links } satisfies BuddyScanResult)
+  })
+}
+
+if (isMobileComments && blogId && logNo) {
+  // main은 화면이 뜰 때까지 같은 요청을 몇 번 보낸다. 한 번만 답한다.
+  const answered = new Set<string>()
+  ipcRenderer.on(NAVER_FRAME.scanComments, (_e, req: ScanCommentsRequest) => {
+    if (req.logNo !== logNo || answered.has(req.requestId)) return
+    answered.add(req.requestId)
+    void scanComments(req).catch(() => report(req.requestId, 'none'))
   })
 }

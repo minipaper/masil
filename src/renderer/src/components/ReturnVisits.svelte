@@ -10,6 +10,18 @@
   const myBlogId = $derived(appState.settings?.myBlogId ?? null)
   const postsToCheck = $derived(appState.settings?.replyCheckPosts ?? 3)
 
+  let copied = $state(false)
+  async function copyDiag(): Promise<void> {
+    if (!s?.diag) return
+    try {
+      await navigator.clipboard.writeText(s.diag)
+      copied = true
+      setTimeout(() => (copied = false), 2000)
+    } catch {
+      note = '복사하지 못했어요.'
+    }
+  }
+
   async function add(blogId: string): Promise<void> {
     adding = blogId
     note = null
@@ -41,6 +53,12 @@
       {/if}
     </p>
     {#if s?.message}<p class="msg" role="status">{s.message}</p>{/if}
+    {#if s?.diag}
+      <p class="hint">
+        진단 정보에는 단계와 개수만 있고 이름, 블로그 ID, 댓글 내용은 없어요. 복사해서 개발자에게 보내 주세요.
+        <button type="button" class="ghost" onclick={copyDiag}>{copied ? '복사했어요' : '진단 정보 복사'}</button>
+      </p>
+    {/if}
   {/if}
 </div>
 

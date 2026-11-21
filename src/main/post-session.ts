@@ -177,7 +177,7 @@ export class PostSession {
     const cur = this.replies
     if (!cur) return
     if (r.state !== 'comments') {
-      this.setReplies({ ...cur, needsOpen: (r.state === 'closed' || r.state === 'unchanged') && cur.items.length === 0 })
+      this.setReplies({ ...cur, needsOpen: r.state === 'closed' && cur.items.length === 0 })
       return
     }
     const prev = new Map(cur.items.map((i) => [i.commentNo, i]))

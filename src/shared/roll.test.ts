@@ -58,3 +58,18 @@ describe('출석부 정리', () => {
     expect(rollCounts(posts, new Set(['cloud']))).toEqual({ all: 3, pending: 2, visits: 1, done: 1 })
   })
 })
+
+describe('답방: 모바일 댓글 화면', () => {
+  it('댓글이 펼쳐진 모바일 화면 주소', async () => {
+    const { mobileCommentsUrl, parsePostRef } = await import('./blog-id')
+    const url = mobileCommentsUrl('springrain', '223000000001')
+    expect(url).toBe('https://m.blog.naver.com/PostView.naver?blogId=springrain&logNo=223000000001&modal=comment')
+    // 웹뷰가 이 화면에서 보낸 보고를 내 글로 알아본다
+    expect(parsePostRef(url)).toEqual({ blogId: 'springrain', logNo: '223000000001' })
+  })
+  it('모바일 프로필 링크에서 블로그 ID', async () => {
+    const { blogHomeId } = await import('./buddy')
+    expect(blogHomeId('https://m.blog.naver.com/PostList.naver?blogId=sunny&trackingCode=blog_comment')).toBe('sunny')
+    expect(blogHomeId('https://blog.naver.com/sunny')).toBe('sunny')
+  })
+})

@@ -14,7 +14,7 @@ export const NAVER_FRAME = {
   submitResult: 'naverframe:submit-result',
   /** frame → main: 사용자가 공감 버튼을 눌렀다 ({blogId, logNo, liked}) */
   like: 'naverframe:like',
-  /** main → frame: 내 글의 댓글을 읽어 달라 (ScanCommentsRequest). open이면 접힌 댓글 영역을 펼친다 ("답방 갈 곳 찾아보기"를 눌렀을 때만) */
+  /** main → 모바일 댓글 화면: 댓글을 읽어 달라 (ScanCommentsRequest). "답방 갈 곳 찾아보기"를 눌렀을 때만. 아무것도 누르지 않는다 */
   scanComments: 'naverframe:scan-comments',
   /** frame → main: 읽은 댓글 (CommentsReport). 요청 응답이거나, 내 글을 지켜보다 댓글 목록이 바뀌었을 때 */
   comments: 'naverframe:comments',
@@ -31,9 +31,6 @@ export const NAVER_FRAME = {
 export interface ScanCommentsRequest {
   requestId: string
   logNo: string
-  open: boolean
-  /** 지난번에 읽었을 때 댓글 수 (토글의 "댓글 N"). 같으면 펼치지 않고 'unchanged'로 답한다 */
-  known: number | null
 }
 
 export interface CommentsReport {
@@ -41,11 +38,29 @@ export interface CommentsReport {
   requestId: string | null
   logNo: string
   title: string
-  /** comments: 읽음, unchanged: 지난번과 댓글 수가 같아 펼치지 않음, closed: 댓글 영역이 접혀 있음, none: 댓글을 막아 둔 글 */
-  state: 'comments' | 'unchanged' | 'closed' | 'none'
+  /** comments: 읽음, closed: 댓글 영역이 접혀 있음, none: 댓글 목록을 찾지 못함 (막아 둔 글 등) */
+  state: 'comments' | 'closed' | 'none'
   comments: VisitorComment[]
   /** 토글에 적힌 댓글 수 (답글 포함). 모르면 null */
   total?: number | null
+  /** "답방 갈 곳 찾아보기"가 어디서 막혔는지 (이름, ID, 글 내용은 넣지 않는다) */
+  diag?: ScanDiag
+}
+
+/** 댓글 읽기 진단. 사용자가 "진단 정보 복사"로 보내 줄 수 있게 개수와 모양만 담는다 */
+export interface ScanDiag {
+  /** 마지막으로 지난 단계 */
+  stage: 'start' | 'no-list' | 'list' | 'read'
+  ready: string
+  loggedIn: boolean
+  list: boolean
+  items: number
+  read: number
+  /** 읽지 않고 뺀 댓글의 이유별 수 */
+  skipped: Record<string, number>
+  /** 프로필 링크 모양 (ID는 {id}로 가림) */
+  profileShapes: string[]
+  ms: number
 }
 
 export interface ReplyFillRequest {

@@ -1,5 +1,5 @@
-import type { WebFrameMain } from 'electron'
-import { postUrl } from '@shared/blog-id'
+import { app, type WebFrameMain } from 'electron'
+import { mobileCommentsUrl } from '@shared/blog-id'
 import { NAVER_FRAME, type CommentsReport, type ScanCommentsRequest } from '@shared/naver-frame'
 import type { ReturnVisitItem, VisitScanStatus } from '@shared/types'
 import { RETURN_VISIT_DAYS, pickReturnVisits } from '@shared/visitors'
@@ -12,8 +12,6 @@ import { MIN_CHECK_INTERVAL_MINUTES } from '@shared/policy'
 import type { RssItem } from '@shared/rss'
 
 const LAST_SCAN_KEY = 'visit.lastScanAt'
-/** 글마다 지난번에 읽은 댓글 수 ({logNo: 수}). 같으면 다음에 펼치지 않고 넘어간다 */
-const COUNTS_KEY = 'visit.commentCounts'
 /** 내 블로그 글 목록(RSS)을 다시 받지 않고 쓰는 시간. RSS 확인 주기 하한과 같게 둔다 (원칙 2) */
 const RSS_REUSE_MS = MIN_CHECK_INTERVAL_MINUTES * 60_000
 /** 글 하나를 열고 댓글을 받기까지 기다리는 시간 */
@@ -24,7 +22,7 @@ const POST_TIMEOUT_MS = 40_000
  * 사용자가 버튼을 눌렀을 때만, 내 최신 글 몇 편을 웹뷰로 차례로 열어 댓글 단 사람을 읽는다.
  * - 글 목록은 내 블로그 RSS 한 번으로 알아낸다.
  * - 글을 여는 것도 네이버 요청 큐를 거쳐 하나씩, 사이에 3~6초를 둔다 (원칙 2).
- * - 접힌 댓글 영역의 토글만 누른다 (원칙 1의 허용 버튼).
+ * - 모바일 댓글 화면(댓글이 펼쳐진 채로 뜬다)을 읽기만 하고 아무것도 누르지 않는다.
  */
 export class VisitorScan {
   private status: VisitScanStatus
@@ -67,7 +65,7 @@ export class VisitorScan {
     if (!view) return this.set({ message: '웹뷰가 아직 준비되지 않았어요.' })
 
     this.cancelled = false
-    this.set({ running: true, done: 0, total: 0, found: 0, message: '내 블로그 글 목록을 읽는 중' })
+    this.set({ running: true, done: 0, total: 0, found: 0, message: '내 블로그 글 목록을 읽는 중', diag: null })
     let items: RssItem[]
     const cached = this.rss
     if (cached && cached.blogId === myBlogId && Date.now() - cached.at < RSS_REUSE_MS) {
@@ -90,14 +88,18 @@ export class VisitorScan {
     let found = 0
     let read = 0
     let failed = 0
-    const counts = repo.readSetting<Record<string, number>>(this.db, COUNTS_KEY) ?? {}
+    let suspicious = 0
+    const diags: unknown[] = []
     for (const p of posts) {
       if (this.cancelled) break
-      const report = await enqueueNaverRequest(() => this.scanOne(view, myBlogId, p.logNo, counts[p.logNo] ?? null))
-      if (report?.state === 'comments' && typeof report.total === 'number') counts[p.logNo] = report.total
-      if (report?.state === 'unchanged') {
-        read++
-      } else if (report?.state === 'comments') {
+      const report = await enqueueNaverRequest(() => this.scanOne(view, myBlogId, p.logNo))
+      // 댓글 목록은 있는데 한 명도 알아보지 못했으면 (선택자나 링크 모양이 바뀐 경우) 진단에 남긴다
+      const missed = report?.state === 'comments' && report.comments.length === 0 && (report.diag?.items ?? 0) > 0 && Object.keys(report.diag?.skipped ?? {}).some((k) => k !== 'mine' && k !== 'reply' && k !== 'deleted')
+      if (missed) suspicious++
+      if (!report || report.state !== 'comments' || missed) {
+        diags.push({ post: posts.indexOf(p) + 1, state: report?.state ?? 'timeout', ...(report?.diag ?? {}) })
+      }
+      if (report?.state === 'comments') {
         // 글을 여는 사이 PostSession도 같은 댓글을 저장할 수 있어서, 새로 저장한 수가 아니라 읽은 수를 센다
         repo.upsertVisitorComments(this.db, report.comments.map((c) => ({ ...c, postTitle: report.title || p.title })))
         found += report.comments.length
@@ -111,25 +113,25 @@ export class VisitorScan {
 
     const lastAt = new Date().toISOString()
     repo.writeSetting(this.db, LAST_SCAN_KEY, lastAt)
-    // 최근 글 몇 편 것만 남긴다
-    const keep = Object.fromEntries(items.slice(0, 30).flatMap((i) => (i.logNo in counts ? [[i.logNo, counts[i.logNo]]] : [])))
-    repo.writeSetting(this.db, COUNTS_KEY, keep)
-    const tail = failed > 0 ? ` ${failed}편은 댓글을 읽지 못했어요. 잠시 뒤 다시 찾아봐 주세요.` : ''
+    const tail =
+      (failed > 0 ? ` ${failed}편은 댓글을 읽지 못했어요.` : '') +
+      (suspicious > 0 ? ` ${suspicious}편은 댓글이 있는데 댓글 단 분을 알아보지 못했어요.` : '')
     const head = this.cancelled
       ? '중간에 멈췄어요.'
       : found > 0
-        ? `글 ${read}편을 확인했어요. 새로 읽은 댓글 ${found}개.`
+        ? `글 ${read}편에서 다른 분이 단 댓글 ${found}개를 읽었어요.`
         : read > 0
-          ? `글 ${read}편을 확인했어요. 새로 달린 댓글은 없어요.`
+          ? `글 ${read}편을 확인했어요. 다른 분이 단 댓글은 없어요.`
           : ''
-    this.set({ running: false, lastAt, message: (head + tail).trim() })
+    const diag = diags.length > 0 ? JSON.stringify({ app: app.getVersion(), at: lastAt, posts: diags }) : null
+    this.set({ running: false, lastAt, message: (head + tail).trim(), diag })
   }
 
-  /** 내 글 하나를 웹뷰로 열고, 글 화면이 뜨면 댓글을 읽어 달라고 한다 */
-  private scanOne(view: NaverView, myBlogId: string, logNo: string, known: number | null): Promise<CommentsReport | null> {
-    view.load(postUrl(myBlogId, logNo))
+  /** 내 글 하나의 모바일 댓글 화면을 웹뷰로 열고, 댓글을 읽어 달라고 한다 (누르는 것 없음) */
+  private scanOne(view: NaverView, myBlogId: string, logNo: string): Promise<CommentsReport | null> {
+    view.load(mobileCommentsUrl(myBlogId, logNo))
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const req: ScanCommentsRequest = { requestId, logNo, open: true, known }
+    const req: ScanCommentsRequest = { requestId, logNo }
     return new Promise((resolve) => {
       const done = (r: CommentsReport | null): void => {
         clearTimeout(timer)
