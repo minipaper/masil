@@ -1,3 +1,4 @@
+import { latestPerNeighbor, type RollFilter, type RollSort } from '@shared/roll'
 import { pickNextInRound, summarizeRound } from '@shared/round'
 import type {
   CheckStatus,
@@ -17,6 +18,23 @@ export type LeftTab = 'today' | 'visits' | 'neighbors' | 'quiet'
 
 const api = window.masil
 
+/** 출석부 필터와 정렬은 이 PC에만 기억한다 (못 읽어도 기본값으로 동작) */
+function remembered<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
+  try {
+    const v = localStorage.getItem(key) as T | null
+    return v && allowed.includes(v) ? v : fallback
+  } catch {
+    return fallback
+  }
+}
+function remember(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // 저장 못 해도 이번 실행에서는 그대로 쓴다
+  }
+}
+
 /** 앱 화면 전체가 공유하는 상태. main에서 오는 이벤트로 갱신된다. */
 class AppState {
   posts = $state<Post[]>([])
@@ -35,6 +53,8 @@ class AppState {
   returnVisits = $state<ReturnVisitItem[]>([])
   replies = $state<RepliesState | null>(null)
   history = $state<CommentRecord[]>([])
+  rollFilter = $state<RollFilter>(remembered<RollFilter>('masil.rollFilter', 'all', ['all', 'pending', 'visits', 'done']))
+  rollSort = $state<RollSort>(remembered<RollSort>('masil.rollSort', 'visits-first', ['visits-first', 'newest', 'oldest']))
   settingsOpen = $state(false)
   /** 이웃 가져오기 패널 (왼쪽) */
   importOpen = $state(false)
@@ -44,6 +64,8 @@ class AppState {
   /** 웹뷰를 가리는 이유들 (설정 창, 마실 끝 화면, 경계선 끌기) */
   private hideReasons = new Set<string>()
 
+  /** 이웃마다 가장 최근 글 하나. 출석부, 남은 글 수, 마실 모드가 모두 이것만 쓴다 (예전 글은 가린다) */
+  rollPosts = $derived(latestPerNeighbor(this.posts).map((r) => r.post))
   selectedPost = $derived(this.posts.find((p) => p.id === this.selectedPostId) ?? null)
   /** 오른쪽 패널의 이웃: 웹뷰에 열린 글의 이웃 → 출석부에서 고른 글의 이웃 순 */
   selectedNeighbor = $derived.by(() => {
@@ -64,11 +86,11 @@ class AppState {
   /** 웹뷰에 열린 글이 내 글인지 (오른쪽에 답글 초안을 보여 준다) */
   isMyPost = $derived(!!this.currentPost && !!this.settings?.myBlogId && this.currentPost.blogId === this.settings.myBlogId)
   historyBlogId = $derived(this.currentPost?.blogId ?? this.selectedNeighbor?.blogId ?? null)
-  pendingCount = $derived(this.posts.filter((p) => p.status === 'new' || p.status === 'read').length)
+  pendingCount = $derived(this.rollPosts.filter((p) => p.status === 'new' || p.status === 'read').length)
   /** 지금 연 글을 뺀 나머지 들를 글 수 ("다음 글" 버튼용) */
   roundStats = $derived(this.round ? summarizeRound(this.posts, this.round.startedAt) : null)
   pendingOthers = $derived(
-    this.posts.filter((p) => (p.status === 'new' || p.status === 'read') && p.id !== this.selectedPostId).length
+    this.rollPosts.filter((p) => (p.status === 'new' || p.status === 'read') && p.id !== this.selectedPostId).length
   )
 
   async init(): Promise<void> {
@@ -126,6 +148,16 @@ class AppState {
   }
 
   /** WebContentsView는 항상 화면 맨 위에 그려지므로, 앱 화면이 그 자리를 써야 할 때 숨긴다 */
+  setRollFilter(f: RollFilter): void {
+    this.rollFilter = f
+    remember('masil.rollFilter', f)
+  }
+
+  setRollSort(s: RollSort): void {
+    this.rollSort = s
+    remember('masil.rollSort', s)
+  }
+
   hideNaver(reason: string, hidden: boolean): void {
     if (hidden) this.hideReasons.add(reason)
     else this.hideReasons.delete(reason)
@@ -161,7 +193,7 @@ class AppState {
   private async openRoundNext(): Promise<void> {
     const round = this.round
     if (!round) return
-    const next = pickNextInRound(this.posts, round.visited, this.returnVisitIds)
+    const next = pickNextInRound(this.rollPosts, round.visited, this.returnVisitIds)
     if (!next) {
       this.setFinished(true)
       return
@@ -245,7 +277,8 @@ class AppState {
 
   /** 들러야 하는 글 중 가장 오래된 것을 연다 (마실 모드의 기본 동작) */
   async openNextPending(): Promise<boolean> {
-    const next = await api.posts.nextPending(this.selectedPostId ?? undefined)
+    await this.refresh()
+    const next = pickNextInRound(this.rollPosts, this.selectedPostId == null ? [] : [this.selectedPostId], this.returnVisitIds)
     if (!next) return false
     await this.openPost(next.id)
     return true

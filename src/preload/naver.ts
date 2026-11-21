@@ -165,20 +165,51 @@ function postTitle(): string {
 }
 
 function report(requestId: string | null, state: CommentsReport['state']): void {
-  const msg: CommentsReport = { requestId, logNo, title: postTitle(), state, comments: state === 'comments' ? readComments() : [] }
+  const msg: CommentsReport = {
+    requestId,
+    logNo,
+    title: postTitle(),
+    state,
+    comments: state === 'comments' ? readComments() : [],
+    total: commentCount()
+  }
   ipcRenderer.send(NAVER_FRAME.comments, msg)
 }
 
-/** "답방 갈 곳 찾아보기": 댓글을 읽어 보낸다. open이면 접힌 댓글 영역의 토글만 누른다 (허용 버튼) */
+/** 댓글 토글("댓글 14")에 적힌 댓글 수. 모르면 null */
+function commentCount(): number | null {
+  const m = (document.querySelector<HTMLElement>(SEL.commentToggle(logNo))?.innerText ?? '').match(/댓글\s*([\d,]+)/)
+  return m ? Number(m[1].replace(/,/g, '')) : null
+}
+
+/**
+ * "답방 갈 곳 찾아보기": 댓글을 읽어 보낸다. open이면 접힌 댓글 영역의 토글만 누른다 (허용 버튼).
+ * 글 본문이 먼저 뜨고 댓글 영역은 나중에 그려지므로, 토글이나 목록이 보이고 댓글이 채워질 때까지 기다린 뒤에 답한다.
+ * 너무 일찍 답하면 댓글이 있는 글도 "없음"으로 끝난다 (2026-11-21 버그).
+ */
 async function scanComments(req: ScanCommentsRequest): Promise<void> {
+  await waitFor(() => document.querySelector(SEL.commentList) ?? document.querySelector(SEL.commentToggle(logNo)), 10_000, 100)
   if (!document.querySelector(SEL.commentList)) {
     const toggle = document.querySelector<HTMLElement>(SEL.commentToggle(logNo))
     if (!toggle) return report(req.requestId, document.querySelector(SEL.cbox) ? 'comments' : 'none')
+    const count = commentCount()
+    if (count === 0) return report(req.requestId, 'comments')
+    // 지난번과 댓글 수가 같으면 펼치지 않는다 (네이버에 댓글을 다시 불러오지 않아 빠르다)
+    if (count !== null && count === req.known) return report(req.requestId, 'unchanged')
     if (!req.open) return report(req.requestId, 'closed')
+    // 네이버 댓글 스크립트가 준비되기 전에 누르면 아무 일도 없다. 문서가 다 뜬 뒤에 누르고,
+    // 그래도 목록이 안 생기면 한 번만 더 누른다 (같은 허용 버튼)
+    await waitFor(() => (document.readyState === 'complete' ? true : null), 8000, 100)
+    const list = (): Element | null => document.querySelector(SEL.commentList)
     toggle.click()
-    if (!(await waitFor(() => document.querySelector(SEL.commentList), 8000))) return report(req.requestId, 'none')
-    await sleep(500)
+    if (!(await waitFor(list, 4000, 100))) {
+      document.querySelector<HTMLElement>(SEL.commentToggle(logNo))?.click()
+      if (!(await waitFor(list, 6000, 100))) return report(req.requestId, 'none')
+    }
   }
+  // 목록 틀이 먼저 생기고 댓글은 나중에 한꺼번에 채워진다
+  const expected = commentCount() ?? 0
+  await waitFor(() => document.querySelector(SEL.commentItem), expected > 0 ? 8000 : 1500, 100)
   report(req.requestId, 'comments')
 }
 

@@ -32,6 +32,8 @@ export interface ScanCommentsRequest {
   requestId: string
   logNo: string
   open: boolean
+  /** 지난번에 읽었을 때 댓글 수 (토글의 "댓글 N"). 같으면 펼치지 않고 'unchanged'로 답한다 */
+  known: number | null
 }
 
 export interface CommentsReport {
@@ -39,9 +41,11 @@ export interface CommentsReport {
   requestId: string | null
   logNo: string
   title: string
-  /** comments: 읽음, closed: 댓글 영역이 접혀 있음, none: 댓글을 막아 둔 글 */
-  state: 'comments' | 'closed' | 'none'
+  /** comments: 읽음, unchanged: 지난번과 댓글 수가 같아 펼치지 않음, closed: 댓글 영역이 접혀 있음, none: 댓글을 막아 둔 글 */
+  state: 'comments' | 'unchanged' | 'closed' | 'none'
   comments: VisitorComment[]
+  /** 토글에 적힌 댓글 수 (답글 포함). 모르면 null */
+  total?: number | null
 }
 
 export interface ReplyFillRequest {

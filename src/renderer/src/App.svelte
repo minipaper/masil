@@ -73,10 +73,11 @@
   ]
 
   const summary = $derived.by(() => {
-    const total = appState.posts.length
+    // 이웃마다 최근 글 하나로 센다
+    const total = appState.rollPosts.length
     if (total === 0) return '새 글을 기다리는 중'
-    const visited = appState.posts.filter((p) => p.status === 'commented' || p.status === 'skipped').length
-    return `새 글 ${total}편, 그중 ${visited}곳 다녀옴`
+    const visited = appState.rollPosts.filter((p) => p.status === 'commented' || p.status === 'skipped').length
+    return `새 글 올린 이웃 ${total}곳, 그중 ${visited}곳 다녀옴`
   })
 </script>
 
@@ -117,7 +118,7 @@
         <span class="body">마실 시작 <small>{appState.pendingCount > 0 ? `남은 ${appState.pendingCount}편` : '들를 글 없음'}</small></span>
         <span class="ferrule"></span><span class="eraser"></span>
       </button>
-      <p>오래된 글부터 차례로 열어요.</p>
+      <p>답방할 집부터, 오래된 글부터 열어요.</p>
     </div>
   </aside>
 

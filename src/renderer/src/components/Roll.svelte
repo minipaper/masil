@@ -1,5 +1,6 @@
 <script lang="ts">
   import { daysSince, formatPostTime } from '@shared/format'
+  import { ROLL_FILTERS, ROLL_SORTS, rollCounts, rollRows, type RollSort } from '@shared/roll'
   import type { Post } from '@shared/types'
   import { appState } from '../lib/app-state.svelte'
   import Mark from './Mark.svelte'
@@ -11,13 +12,9 @@
     return p.status === 'new' ? 'none' : 'read'
   }
 
-  // 답방할 집의 처리 전 글을 맨 위로
-  const rows = $derived.by(() => {
-    const first = appState.returnVisitIds
-    if (first.size === 0) return appState.posts
-    const pending = (p: Post): boolean => p.status === 'new' || p.status === 'read'
-    return [...appState.posts].sort((a, b) => Number(pending(b) && first.has(b.blogId)) - Number(pending(a) && first.has(a.blogId)))
-  })
+  // 이웃마다 최근 글 하나만, 고른 필터와 정렬로
+  const rows = $derived(rollRows(appState.posts, appState.rollFilter, appState.rollSort, appState.returnVisitIds))
+  const counts = $derived(rollCounts(appState.posts, appState.returnVisitIds))
 
   /** 새 글이 있는데 오래 못 간 이웃이면 "34일 만" 표시 */
   function lateLabel(p: Post): string | null {
@@ -39,12 +36,27 @@
     {/if}
   </div>
 {:else}
+  <div class="tools">
+    <div class="chips" role="group" aria-label="보여 줄 글">
+      {#each ROLL_FILTERS as f (f.id)}
+        <button type="button" class:on={appState.rollFilter === f.id} aria-pressed={appState.rollFilter === f.id} onclick={() => appState.setRollFilter(f.id)}>
+          {f.label} <small>{counts[f.id]}</small>
+        </button>
+      {/each}
+    </div>
+    <select aria-label="정렬" value={appState.rollSort} onchange={(e) => appState.setRollSort(e.currentTarget.value as RollSort)}>
+      {#each ROLL_SORTS as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
+    </select>
+  </div>
+  {#if rows.length === 0}
+    <p class="none">이 조건에 맞는 글이 없어요.</p>
+  {/if}
   <table>
     <thead>
       <tr><th>이웃과 새 글</th><th>읽음</th><th>공감</th><th>댓글</th></tr>
     </thead>
     <tbody>
-      {#each rows as p (p.id)}
+      {#each rows as { post: p, more } (p.id)}
         {@const late = lateLabel(p)}
         <tr
           class:current={p.id === appState.selectedPostId}
@@ -54,7 +66,7 @@
             <button type="button" class="row-btn" onclick={() => appState.openPost(p.id)}>
               <span class="nm">{p.neighborName}{#if appState.returnVisitIds.has(p.blogId)}<span class="visit" title="내 글에 댓글을 달아 준 이웃이에요">답방</span>{/if}{#if late}<span class="late">{late}</span>{/if}</span>
               <span class="pt">{p.title}</span>
-              <span class="tm">{formatPostTime(p.publishedAt)}</span>
+              <span class="tm">{formatPostTime(p.publishedAt)}{#if more > 0}<span class="more" title="예전 글은 가리고 가장 최근 글만 보여 줘요">, 이 이웃의 다른 새 글 {more}편</span>{/if}</span>
             </button>
           </td>
           <td class="mark"><Mark kind={readKind(p)} label={p.status === 'skipped' ? '건너뜀' : readKind(p) === 'read' ? '읽음' : '아직'} /></td>
@@ -67,6 +79,55 @@
 {/if}
 
 <style>
+  .tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px 8px 18px;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .chips {
+    display: flex;
+    gap: 4px;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+  }
+  .chips button {
+    background: var(--paper);
+    border: 1px solid #bdbaae;
+    border-radius: 12px;
+    font-size: 12px;
+    padding: 1px 9px;
+    color: var(--graphite-soft);
+  }
+  .chips button small {
+    font-family: var(--font-head);
+    font-size: 11px;
+    margin-left: 2px;
+  }
+  .chips button.on {
+    background: var(--cover);
+    border-color: var(--cover);
+    color: #fff;
+  }
+  .tools select {
+    font-size: 12px;
+    padding: 1px 4px;
+    border: 1px solid #bdbaae;
+    border-radius: 3px;
+    background: var(--paper);
+    color: var(--graphite);
+  }
+  .none {
+    margin: 0;
+    padding: 16px 18px;
+    font-size: 13px;
+    color: var(--graphite-soft);
+  }
+  .more {
+    color: var(--graphite-soft);
+  }
   .visit {
     margin-left: 6px;
     padding: 0 5px;

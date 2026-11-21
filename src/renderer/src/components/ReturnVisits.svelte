@@ -26,7 +26,7 @@
 <div class="head">
   {#if s?.running}
     <p class="status" role="status">
-      내 글을 차례로 여는 중 <b>{s.done}</b>/{s.total || '?'}{#if s.found > 0}, 새 댓글 {s.found}개{/if}
+      내 글을 차례로 여는 중 <b>{s.done}</b>/{s.total || '?'}{#if s.found > 0}, 읽은 댓글 {s.found}개{/if}
     </p>
     <progress max={s.total || 1} value={s.done}></progress>
     <button type="button" class="ghost" onclick={() => api.visits.cancel()}>그만하기</button>
